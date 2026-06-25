@@ -1,0 +1,13 @@
+{
+  "name": "sf-mleu-solutions-marketplace",
+  "description": "Snowflake MLEU (Manufacturing, Logistics, Energy and Utilities) Solution Installers for Claude Code",
+  "owner": {
+    "name": "Snowflake Labs"
+  },
+  "plugins": [
+    {
+      "name": "sf-mleu-solutions",
+      "source": "."
+    }
+  ]
+}

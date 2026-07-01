@@ -22,9 +22,11 @@ Install any solution using the Cortex Code plugin:
 
 ```bash
 # Permanent install (copies plugin to cache — survives restarts)
-cortex plugin install https://github.com/Snowflake-Labs/sf-mleu-solutions.git
+TBA
 
 # Or load locally during development (reads directly from disk, always up-to-date)
+git clone git@github.com:Snowflake-Labs/sf-mleu-solutions.git
+cd sf-mleu-solutions
 cortex --plugin-dir ./plugins/cortex-code
 ```
 
@@ -46,9 +48,11 @@ $sf-mleu-solutions:predictive-maintenance teardown
 
 ```bash
 # Add the marketplace
-claude plugin marketplace add https://github.com/Snowflake-Labs/sf-mleu-solutions.git --path plugins/claude-code
+TBA
 
 # Or load locally during development
+git clone git@github.com:Snowflake-Labs/sf-mleu-solutions.git
+cd sf-mleu-solutions
 claude --plugin-dir ./plugins/claude-code
 ```
 

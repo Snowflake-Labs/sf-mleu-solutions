@@ -48,7 +48,7 @@ SELECT PARSE_JSON(column1) FROM VALUES
 USE SCHEMA SF_SOLUTIONS.MPM_SILVER;
 -- Populate Dimensions first
 SET (START_DATE, END_DATE) = ('1995-01-01', '2030-12-31');
-SET GENERATOR_RECORD_COUNT = (select DATEDIFF(DAY, $START_DATE, $END_DATE) + 1);
+SET GENERATOR_RECORD_COUNT = (SELECT DATEDIFF(DAY, $START_DATE, $END_DATE) + 1);
 INSERT OVERWRITE INTO DIM_DATE (DATE_SK, FULL_DATE, DAY_OF_WEEK, MONTH_NAME, QUARTER, YEAR)
 SELECT 
     TO_NUMBER(TO_CHAR(d.DATE, 'YYYYMMDD')) AS DATE_SK,
@@ -742,13 +742,13 @@ hourly_base AS (
     SELECT 
         a.asset_id,
         a.process_id,
-        DATEADD(HOUR, h.hour_seq, dp.start_timestamp) as recorded_at,
-        TO_NUMBER(TO_CHAR(DATEADD(HOUR, h.hour_seq, dp.start_timestamp), 'YYYYMMDD')) as date_sk,
+        DATEADD(HOUR, h.hour_seq, dp.start_timestamp) AS recorded_at,
+        TO_NUMBER(TO_CHAR(DATEADD(HOUR, h.hour_seq, dp.start_timestamp), 'YYYYMMDD')) AS date_sk,
         h.hour_seq,
-        HOUR(DATEADD(HOUR, h.hour_seq, dp.start_timestamp)) as hour_of_day,
-        DATEDIFF(DAY, dp.start_timestamp, DATEADD(HOUR, h.hour_seq, dp.start_timestamp)) as days_elapsed,
+        HOUR(DATEADD(HOUR, h.hour_seq, dp.start_timestamp)) AS hour_of_day,
+        DATEDIFF(DAY, dp.start_timestamp, DATEADD(HOUR, h.hour_seq, dp.start_timestamp)) AS days_elapsed,
         -- Calculate days since decay started (0 or negative if before decay start)
-        GREATEST(0, DATEDIFF(DAY, dp.decay_start_timestamp, DATEADD(HOUR, h.hour_seq, dp.start_timestamp))) as days_since_decay_start
+        GREATEST(0, DATEDIFF(DAY, dp.decay_start_timestamp, DATEADD(HOUR, h.hour_seq, dp.start_timestamp))) AS days_since_decay_start
     FROM date_params dp
     CROSS JOIN (
         SELECT 
@@ -792,7 +792,7 @@ sensor_data AS (
             -- Furnace much hotter
             WHEN asset_id = 15 THEN ROUND(200 + (hour_of_day * 2) + (days_since_decay_start * 0.5) + UNIFORM(-10, 10, RANDOM()), 2)
             ELSE ROUND(45 + (hour_of_day * 0.4) + (days_since_decay_start * 0.06) + UNIFORM(-2, 3, RANDOM()), 2)  -- Other equipment
-        END as temperature_c,
+        END AS temperature_c,
         
         -- Vibration data (rotating equipment has higher vibration) - controlled precision with degradation
         -- Vibration increases only after decay start date
@@ -802,13 +802,13 @@ sensor_data AS (
             -- Robots (less vibration)
             WHEN asset_id IN (10,13,16) THEN ROUND(0.1 + (days_since_decay_start * 0.001) + UNIFORM(0, 0.2, RANDOM()), 2)
             ELSE ROUND(0.05 + UNIFORM(0, 0.1, RANDOM()), 2)  -- Static equipment
-        END as vibration_mm_s,
+        END AS vibration_mm_s,
         
         -- Pressure data (only for pumps, compressors, and pneumatic systems) - controlled range
         CASE 
             WHEN asset_id IN (1,3,4,7,9,12) THEN ROUND(140 + UNIFORM(-5, 15, RANDOM()), 2)  -- Equipment with pressure sensors
             ELSE NULL
-        END as pressure_psi,
+        END AS pressure_psi,
         
         -- Health score (degrades over time with realistic variation) - range 10-100 for interesting insights
         -- Base health degrades with time ONLY after decay_start_date (90 days ago)
@@ -836,7 +836,7 @@ sensor_data AS (
                 -- Good other equipment
                 ELSE UNIFORM(5, 20, RANDOM())  -- Other equipment decent (GOOD: 53-68 range)
             END
-        )), 2) as health_score
+        )), 2) AS health_score
     FROM hourly_base
 )
 SELECT 
@@ -853,13 +853,13 @@ SELECT
     -- Formula: low health (10) = high failure prob (0.95), high health (100) = low failure prob (0.01)
     -- Linear relationship: failure_prob = 0.01 + (100 - health_score) / 90 * 0.94
     -- This ensures health=10 gives 0.95 and health=100 gives 0.01
-    ROUND(LEAST(0.95, GREATEST(0.01, 0.01 + (100 - health_score) / 90.0 * 0.94)), 2) as failure_probability,
+    ROUND(LEAST(0.95, GREATEST(0.01, 0.01 + (100 - health_score) / 90.0 * 0.94)), 2) AS failure_probability,
     
     -- Remaining useful life (correlated with health score) - range 10 to 500 days
     -- Lower health = lower RUL, higher health = higher RUL
     -- Formula ensures RUL scales with health: health=10 gives ~55 days, health=100 gives ~500 days
     -- RUL decreases based on days since decay started
-    GREATEST(10, ROUND((health_score / 100.0 * 500) - (days_since_decay_start * 0.5) - UNIFORM(0, 20, RANDOM()), 0))::INTEGER as rul_days,
+    GREATEST(10, ROUND((health_score / 100.0 * 500) - (days_since_decay_start * 0.5) - UNIFORM(0, 20, RANDOM()), 0))::INTEGER AS rul_days,
     
     -- Mark as anomalous based on realistic thresholds
     CASE 
@@ -867,7 +867,7 @@ SELECT
         WHEN asset_id IN (1,2,4,5,7,8,11,14,17) AND vibration_mm_s > 1.5 THEN TRUE  -- High vibration
         WHEN asset_id IN (1,4,7) AND temperature_c > 85 THEN TRUE  -- Overheating pumps
         ELSE FALSE
-    END as is_anomalous
+    END AS is_anomalous
 FROM sensor_data;
 
 -- Maintenance Log (Dynamic generation from Nov 1, 2024 to current date)
@@ -897,9 +897,9 @@ daily_asset_base AS (
     SELECT 
         a.asset_id,
         a.process_id,
-        DATEADD(DAY, d.day_seq, dp.start_date) as maint_date,
+        DATEADD(DAY, d.day_seq, dp.start_date) AS maint_date,
         d.day_seq,
-        TO_NUMBER(TO_CHAR(DATEADD(DAY, d.day_seq, dp.start_date), 'YYYYMMDD')) as date_sk
+        TO_NUMBER(TO_CHAR(DATEADD(DAY, d.day_seq, dp.start_date), 'YYYYMMDD')) AS date_sk
     FROM date_params dp
     CROSS JOIN (
         SELECT 
@@ -928,9 +928,9 @@ maintenance_events AS (
             WHEN MOD(day_seq, 20) = MOD((asset_id * 2), 20) THEN 2  -- Predictive Maintenance every 20 days
             WHEN UNIFORM(0, 100, RANDOM()) < 2 THEN 1  -- 2% chance of emergency repair
             ELSE NULL
-        END as wo_type_id,
+        END AS wo_type_id,
         -- Assign technician (rotate through available technicians)
-        MOD((asset_id + day_seq), 10) + 1 as technician_id
+        MOD((asset_id + day_seq), 10) + 1 AS technician_id
     FROM daily_asset_base
 ),
 maint_with_details AS (
@@ -943,7 +943,7 @@ maint_with_details AS (
             WHEN wo_type_id = 3 THEN ROUND(2 + UNIFORM(0, 3, RANDOM()), 1)  -- Preventive: 2-5 hours
             WHEN wo_type_id = 4 THEN ROUND(0.5 + UNIFORM(0, 1, RANDOM()), 1)  -- Inspection: 0.5-1.5 hours
             ELSE 0
-        END as downtime_hours,
+        END AS downtime_hours,
         -- Parts cost
         CASE 
             WHEN wo_type_id = 1 THEN ROUND(300 + UNIFORM(0, 500, RANDOM()), 2)  -- Emergency: $300-800
@@ -951,7 +951,7 @@ maint_with_details AS (
             WHEN wo_type_id = 3 THEN ROUND(100 + UNIFORM(0, 200, RANDOM()), 2)  -- Preventive: $100-300
             WHEN wo_type_id = 4 THEN ROUND(0 + UNIFORM(0, 50, RANDOM()), 2)     -- Inspection: $0-50
             ELSE 0
-        END as parts_cost,
+        END AS parts_cost,
         -- Labor cost (based on downtime * hourly rate $150-200/hr)
         CASE 
             WHEN wo_type_id = 1 THEN ROUND((4 + UNIFORM(0, 4, RANDOM())) * 180, 2)
@@ -959,13 +959,13 @@ maint_with_details AS (
             WHEN wo_type_id = 3 THEN ROUND((2 + UNIFORM(0, 3, RANDOM())) * 150, 2)
             WHEN wo_type_id = 4 THEN ROUND((0.5 + UNIFORM(0, 1, RANDOM())) * 140, 2)
             ELSE 0
-        END as labor_cost,
+        END AS labor_cost,
         -- Failure flag and failure code (only for emergency repairs)
-        CASE WHEN wo_type_id = 1 THEN TRUE ELSE FALSE END as failure_flag,
+        CASE WHEN wo_type_id = 1 THEN TRUE ELSE FALSE END AS failure_flag,
         CASE 
             WHEN wo_type_id = 1 THEN MOD((asset_id + day_seq), 12) + 1  -- Rotate through 12 failure codes
             ELSE NULL 
-        END as failure_code_id,
+        END AS failure_code_id,
         -- Notes based on work order type and asset
         CASE 
             WHEN wo_type_id = 1 THEN 'Emergency repair - ' || 
@@ -998,7 +998,7 @@ maint_with_details AS (
                     ELSE 'standard inspection completed, no issues found'
                 END
             ELSE 'Maintenance activity completed'
-        END as technician_notes
+        END AS technician_notes
     FROM maintenance_events me
     WHERE wo_type_id IS NOT NULL
 )
@@ -1007,7 +1007,7 @@ SELECT
     process_id,
     wo_type_id,
     date_sk,
-    maint_date as completed_date,
+    maint_date AS completed_date,
     downtime_hours,
     parts_cost,
     labor_cost,
@@ -1036,10 +1036,10 @@ daily_production_base AS (
     SELECT 
         a.asset_id,
         a.process_id,
-        DATEADD(DAY, d.day_seq, dp.start_date) as production_date,
-        TO_NUMBER(TO_CHAR(DATEADD(DAY, d.day_seq, dp.start_date), 'YYYYMMDD')) as date_sk,
+        DATEADD(DAY, d.day_seq, dp.start_date) AS production_date,
+        TO_NUMBER(TO_CHAR(DATEADD(DAY, d.day_seq, dp.start_date), 'YYYYMMDD')) AS date_sk,
         d.day_seq,
-        DAYOFWEEK(DATEADD(DAY, d.day_seq, dp.start_date)) as day_of_week
+        DAYOFWEEK(DATEADD(DAY, d.day_seq, dp.start_date)) AS day_of_week
     FROM date_params dp
     CROSS JOIN (
         SELECT 
@@ -1063,8 +1063,8 @@ production_with_maint AS (
         pb.day_seq,
         pb.day_of_week,
         -- Check if there was maintenance on this day
-        COALESCE(ml.downtime_hours, 0) as maint_downtime,
-        COALESCE(ml.failure_flag, FALSE) as had_failure
+        COALESCE(ml.downtime_hours, 0) AS maint_downtime,
+        COALESCE(ml.failure_flag, FALSE) AS had_failure
     FROM daily_production_base pb
     LEFT JOIN SF_SOLUTIONS.MPM_SILVER.FCT_MAINTENANCE_LOG ml 
         ON pb.asset_id = ml.asset_id 
@@ -1080,7 +1080,7 @@ SELECT
         WHEN asset_id IN (1,2,3,4,5,6,7,8,9) THEN 24.0  -- Davidson plant runs 24/7
         WHEN asset_id IN (10,11,12,13,14,15) THEN 20.0  -- Charlotte Assembly line 1&2
         ELSE 18.0  -- Charlotte Assembly line 3
-    END as planned_runtime_hours,
+    END AS planned_runtime_hours,
     -- Actual runtime (reduced by maintenance and random variations)
     CASE 
         WHEN asset_id IN (1,2,3,4,5,6,7,8,9) THEN 
@@ -1089,7 +1089,7 @@ SELECT
             GREATEST(0, ROUND(20.0 - maint_downtime - UNIFORM(0, 1.2, RANDOM()), 1))
         ELSE 
             GREATEST(0, ROUND(18.0 - maint_downtime - UNIFORM(0, 1.0, RANDOM()), 1))
-    END as actual_runtime_hours,
+    END AS actual_runtime_hours,
     -- Units produced (based on asset capacity and actual runtime)
     CASE 
         WHEN asset_id IN (1,2,3,4,5,6,7,8,9) THEN 
@@ -1122,12 +1122,12 @@ SELECT
                     WHEN 17 THEN 49  -- Sorting System Motor: 49 units/hr
                     ELSE 50  -- Quality Control Scanner: 50 units/hr
                 END, 0)::INTEGER
-    END as units_produced,
+    END AS units_produced,
     -- Units scrapped (higher if there was a failure, normal quality issues otherwise)
     CASE 
         WHEN had_failure THEN ROUND(UNIFORM(20, 50, RANDOM()), 0)::INTEGER
         ELSE ROUND(UNIFORM(3, 15, RANDOM()), 0)::INTEGER
-    END as units_scrapped
+    END AS units_scrapped
 FROM production_with_maint;
 
 -- Maintenance Parts Used (Links maintenance events to materials consumed)
@@ -1139,7 +1139,7 @@ WITH maintenance_logs_with_seq AS (
         ml.WO_TYPE_ID,
         ml.ASSET_ID,
         ml.PARTS_COST,
-        ROW_NUMBER() OVER (ORDER BY ml.LOG_ID) as log_seq
+        ROW_NUMBER() OVER (ORDER BY ml.LOG_ID) AS log_seq
     FROM SF_SOLUTIONS.MPM_SILVER.FCT_MAINTENANCE_LOG ml
 ),
 parts_per_maint AS (
@@ -1155,7 +1155,7 @@ parts_per_maint AS (
             WHEN ml.WO_TYPE_ID = 3 THEN UNIFORM(2, 4, RANDOM())  -- Preventive: 2-4 parts
             WHEN ml.WO_TYPE_ID = 4 THEN UNIFORM(0, 2, RANDOM())  -- Inspection: 0-2 parts
             ELSE 1
-        END as num_parts
+        END AS num_parts
     FROM maintenance_logs_with_seq ml
 ),
 parts_expanded AS (
@@ -1167,7 +1167,7 @@ parts_expanded AS (
         p.part_seq
     FROM parts_per_maint pm
     CROSS JOIN (
-        SELECT ROW_NUMBER() OVER (ORDER BY SEQ4()) as part_seq
+        SELECT ROW_NUMBER() OVER (ORDER BY SEQ4()) AS part_seq
         FROM TABLE(GENERATOR(ROWCOUNT => 10))
     ) p
     WHERE p.part_seq <= pm.num_parts
@@ -1213,14 +1213,14 @@ SELECT
                 WHEN 2 THEN 15  -- Gasket
                 ELSE 8          -- Oil
             END
-    END as material_id,
+    END AS material_id,
     -- Quantity varies by part type
     CASE 
         WHEN pe.WO_TYPE_ID = 1 THEN ROUND(UNIFORM(1, 3, RANDOM()), 1)  -- Emergency: 1-3 units
         WHEN pe.WO_TYPE_ID = 2 THEN ROUND(UNIFORM(1, 2, RANDOM()), 1)  -- Predictive: 1-2 units
         WHEN pe.WO_TYPE_ID = 3 THEN ROUND(UNIFORM(1, 2, RANDOM()), 1)  -- Preventive: 1-2 units
         ELSE 1  -- Inspection: 1 unit
-    END as quantity_used,
+    END AS quantity_used,
     -- Calculate cost based on material and quantity
     ROUND(
         CASE 
@@ -1252,7 +1252,7 @@ SELECT
             WHEN 19 THEN 8.50
             ELSE 15.75
         END
-    , 2) as total_cost
+    , 2) AS total_cost
 FROM parts_expanded pe;
 
 -- Insert into GOLD Layer
@@ -1268,15 +1268,15 @@ LATEST_HEALTH_SCORE,
 AVG_FAILURE_PROBABILITY,
 MIN_RUL_DAYS)
 SELECT 
-    DATE_TRUNC('HOUR', t.RECORDED_AT) as hour_timestamp,
+    DATE_TRUNC('HOUR', t.RECORDED_AT) AS hour_timestamp,
     t.ASSET_ID,
-    ROUND(AVG(t.TEMPERATURE_C), 2) as avg_temperature_c,
-    ROUND(MAX(t.VIBRATION_MM_S), 2) as max_vibration_mm_s,
-    ROUND(STDDEV(t.PRESSURE_PSI), 2) as stddev_pressure_psi,
+    ROUND(AVG(t.TEMPERATURE_C), 2) AS avg_temperature_c,
+    ROUND(MAX(t.VIBRATION_MM_S), 2) AS max_vibration_mm_s,
+    ROUND(STDDEV(t.PRESSURE_PSI), 2) AS stddev_pressure_psi,
     -- Get the latest health score within the hour
-    MAX(t.HEALTH_SCORE) as latest_health_score,
-    ROUND(AVG(t.FAILURE_PROBABILITY), 2) as avg_failure_probability,
-    MIN(t.RUL_DAYS) as min_rul_days
+    MAX(t.HEALTH_SCORE) AS latest_health_score,
+    ROUND(AVG(t.FAILURE_PROBABILITY), 2) AS avg_failure_probability,
+    MIN(t.RUL_DAYS) AS min_rul_days
 FROM SF_SOLUTIONS.MPM_SILVER.FCT_ASSET_TELEMETRY t
 WHERE t.RECORDED_AT >= '2024-11-01 00:00:00'::TIMESTAMP_NTZ
 GROUP BY 
@@ -1297,13 +1297,13 @@ DOWNTIME_IMPACT_RISK,
 FAILED_IN_NEXT_7_DAYS)
 WITH daily_observations AS (
     SELECT DISTINCT
-        t.DATE_SK as observation_date_sk,
+        t.DATE_SK AS observation_date_sk,
         t.ASSET_ID,
-        t.RECORDED_AT::DATE as observation_date
+        t.RECORDED_AT::DATE AS observation_date
     FROM SF_SOLUTIONS.MPM_SILVER.FCT_ASSET_TELEMETRY t
     WHERE t.RECORDED_AT >= '2024-11-01'::DATE
 ),
-temp_features AS (
+temp_features AS ( -- noqa: ST03
     SELECT 
         do.observation_date_sk,
         do.ASSET_ID,
@@ -1315,7 +1315,7 @@ temp_features AS (
         AND t.RECORDED_AT < DATEADD(DAY, 1, do.observation_date::TIMESTAMP_NTZ)
     GROUP BY do.observation_date_sk, do.ASSET_ID
 ),
-vibration_features AS (
+vibration_features AS ( -- noqa: ST03
     SELECT 
         do.observation_date_sk,
         do.ASSET_ID,
@@ -1327,7 +1327,7 @@ vibration_features AS (
         AND t.RECORDED_AT < DATEADD(DAY, 1, do.observation_date::TIMESTAMP_NTZ)
     GROUP BY do.observation_date_sk, do.ASSET_ID
 ),
-pressure_features AS (
+pressure_features AS ( -- noqa: ST03
     SELECT 
         do.observation_date_sk,
         do.ASSET_ID,
@@ -1342,7 +1342,7 @@ pressure_features AS (
         AND t.PRESSURE_PSI IS NOT NULL
     GROUP BY do.observation_date_sk, do.ASSET_ID
 ),
-maintenance_features AS (
+maintenance_features AS ( -- noqa: ST03
     SELECT 
         do.observation_date_sk,
         do.ASSET_ID,
@@ -1363,7 +1363,7 @@ maintenance_features AS (
         AND ml.COMPLETED_DATE < do.observation_date
     GROUP BY do.observation_date_sk, do.ASSET_ID, do.observation_date
 ),
-future_failures AS (
+future_failures AS ( -- noqa: ST03
     SELECT 
         do.observation_date_sk,
         do.ASSET_ID,
@@ -1469,21 +1469,21 @@ INSERT INTO AGG_MONTHLY_TRENDS (
 )
 WITH monthly_oee AS (
     SELECT 
-        TO_CHAR(oee.PRODUCTION_DATE, 'YYYY-MM') as year_month,
-        YEAR(oee.PRODUCTION_DATE) as year,
-        MONTH(oee.PRODUCTION_DATE) as month,
+        TO_CHAR(oee.PRODUCTION_DATE, 'YYYY-MM') AS year_month,
+        YEAR(oee.PRODUCTION_DATE) AS year,
+        MONTH(oee.PRODUCTION_DATE) AS month,
         l.PLANT_ID,
         p.LINE_ID,
         oee.PROCESS_ID,
-        AVG(oee.OEE_PERCENT) as avg_oee_percent,
-        MIN(oee.OEE_PERCENT) as min_oee_percent,
-        MAX(oee.OEE_PERCENT) as max_oee_percent,
-        AVG(oee.AVAILABILITY_PERCENT) as avg_availability_percent,
-        AVG(oee.PERFORMANCE_PERCENT) as avg_performance_percent,
-        AVG(oee.QUALITY_PERCENT) as avg_quality_percent,
-        SUM(oee.UNITS_PRODUCED) as total_units_produced,
-        SUM(oee.UNITS_SCRAPPED) as total_units_scrapped,
-        COUNT(DISTINCT oee.ASSET_ID) as asset_count
+        AVG(oee.OEE_PERCENT) AS avg_oee_percent,
+        MIN(oee.OEE_PERCENT) AS min_oee_percent,
+        MAX(oee.OEE_PERCENT) AS max_oee_percent,
+        AVG(oee.AVAILABILITY_PERCENT) AS avg_availability_percent,
+        AVG(oee.PERFORMANCE_PERCENT) AS avg_performance_percent,
+        AVG(oee.QUALITY_PERCENT) AS avg_quality_percent,
+        SUM(oee.UNITS_PRODUCED) AS total_units_produced,
+        SUM(oee.UNITS_SCRAPPED) AS total_units_scrapped,
+        COUNT(DISTINCT oee.ASSET_ID) AS asset_count
     FROM SF_SOLUTIONS.MPM_GOLD.AGG_DAILY_OEE oee
     JOIN SF_SOLUTIONS.MPM_SILVER.DIM_ASSET a ON oee.ASSET_ID = a.ASSET_ID AND a.IS_CURRENT = TRUE
     JOIN SF_SOLUTIONS.MPM_SILVER.DIM_PROCESS p ON oee.PROCESS_ID = p.PROCESS_ID
@@ -1499,18 +1499,18 @@ WITH monthly_oee AS (
 ),
 monthly_maintenance AS (
     SELECT 
-        TO_CHAR(ml.COMPLETED_DATE, 'YYYY-MM') as year_month,
+        TO_CHAR(ml.COMPLETED_DATE, 'YYYY-MM') AS year_month,
         l.PLANT_ID,
         p.LINE_ID,
         ml.PROCESS_ID,
-        SUM(ml.PARTS_COST + ml.LABOR_COST) as total_maintenance_cost,
-        SUM(ml.PARTS_COST) as total_parts_cost,
-        SUM(ml.LABOR_COST) as total_labor_cost,
-        SUM(ml.DOWNTIME_HOURS) as total_downtime_hours,
-        SUM(CASE WHEN ml.WO_TYPE_ID = 3 THEN 1 ELSE 0 END) as preventive_wo_count,
-        SUM(CASE WHEN ml.WO_TYPE_ID = 2 THEN 1 ELSE 0 END) as predictive_wo_count,
-        SUM(CASE WHEN ml.WO_TYPE_ID = 1 THEN 1 ELSE 0 END) as emergency_wo_count,
-        SUM(CASE WHEN ml.FAILURE_FLAG = TRUE THEN 1 ELSE 0 END) as failure_count
+        SUM(ml.PARTS_COST + ml.LABOR_COST) AS total_maintenance_cost,
+        SUM(ml.PARTS_COST) AS total_parts_cost,
+        SUM(ml.LABOR_COST) AS total_labor_cost,
+        SUM(ml.DOWNTIME_HOURS) AS total_downtime_hours,
+        SUM(CASE WHEN ml.WO_TYPE_ID = 3 THEN 1 ELSE 0 END) AS preventive_wo_count,
+        SUM(CASE WHEN ml.WO_TYPE_ID = 2 THEN 1 ELSE 0 END) AS predictive_wo_count,
+        SUM(CASE WHEN ml.WO_TYPE_ID = 1 THEN 1 ELSE 0 END) AS emergency_wo_count,
+        SUM(CASE WHEN ml.FAILURE_FLAG = TRUE THEN 1 ELSE 0 END) AS failure_count
     FROM SF_SOLUTIONS.MPM_SILVER.FCT_MAINTENANCE_LOG ml
     JOIN SF_SOLUTIONS.MPM_SILVER.DIM_ASSET a ON ml.ASSET_ID = a.ASSET_ID AND a.IS_CURRENT = TRUE
     JOIN SF_SOLUTIONS.MPM_SILVER.DIM_PROCESS p ON ml.PROCESS_ID = p.PROCESS_ID
@@ -1529,20 +1529,20 @@ SELECT
     oee.plant_id,
     oee.line_id,
     oee.process_id,
-    ROUND(oee.avg_oee_percent, 2) as avg_oee_percent,
-    ROUND(oee.min_oee_percent, 2) as min_oee_percent,
-    ROUND(oee.max_oee_percent, 2) as max_oee_percent,
-    ROUND(oee.avg_availability_percent, 2) as avg_availability_percent,
-    ROUND(oee.avg_performance_percent, 2) as avg_performance_percent,
-    ROUND(oee.avg_quality_percent, 2) as avg_quality_percent,
-    COALESCE(maint.total_maintenance_cost, 0) as total_maintenance_cost,
-    COALESCE(maint.total_parts_cost, 0) as total_parts_cost,
-    COALESCE(maint.total_labor_cost, 0) as total_labor_cost,
-    COALESCE(maint.total_downtime_hours, 0) as total_downtime_hours,
-    COALESCE(maint.preventive_wo_count, 0) as preventive_wo_count,
-    COALESCE(maint.predictive_wo_count, 0) as predictive_wo_count,
-    COALESCE(maint.emergency_wo_count, 0) as emergency_wo_count,
-    COALESCE(maint.failure_count, 0) as failure_count,
+    ROUND(oee.avg_oee_percent, 2) AS avg_oee_percent,
+    ROUND(oee.min_oee_percent, 2) AS min_oee_percent,
+    ROUND(oee.max_oee_percent, 2) AS max_oee_percent,
+    ROUND(oee.avg_availability_percent, 2) AS avg_availability_percent,
+    ROUND(oee.avg_performance_percent, 2) AS avg_performance_percent,
+    ROUND(oee.avg_quality_percent, 2) AS avg_quality_percent,
+    COALESCE(maint.total_maintenance_cost, 0) AS total_maintenance_cost,
+    COALESCE(maint.total_parts_cost, 0) AS total_parts_cost,
+    COALESCE(maint.total_labor_cost, 0) AS total_labor_cost,
+    COALESCE(maint.total_downtime_hours, 0) AS total_downtime_hours,
+    COALESCE(maint.preventive_wo_count, 0) AS preventive_wo_count,
+    COALESCE(maint.predictive_wo_count, 0) AS predictive_wo_count,
+    COALESCE(maint.emergency_wo_count, 0) AS emergency_wo_count,
+    COALESCE(maint.failure_count, 0) AS failure_count,
     oee.total_units_produced,
     oee.total_units_scrapped,
     oee.asset_count
@@ -1553,4 +1553,3 @@ LEFT JOIN monthly_maintenance maint
     AND oee.line_id = maint.line_id 
     AND oee.process_id = maint.process_id
 ORDER BY oee.year_month, oee.plant_id, oee.line_id;
-

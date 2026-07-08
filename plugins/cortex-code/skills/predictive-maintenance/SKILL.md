@@ -71,10 +71,14 @@ Parse the action from `$ARGUMENTS`:
 4. Wait for user confirmation.
 
 5. Read `solutions/predictive-maintenance/scripts/setup.sql` and execute statement by statement using `snowflake_sql_execute`.
-   - Data generation may take several minutes: use `timeout_seconds: 600`
+   - This file contains DDL only (schema, tables, views, agent creation)
    - Log progress after each major section (Bronze, Silver, Gold, Semantic View, Agent)
 
-6. Verify:
+6. Read `solutions/predictive-maintenance/scripts/data.sql` and execute statement by statement using `snowflake_sql_execute`.
+   - This file contains sample data INSERT statements
+   - Data generation may take several minutes: use `timeout_seconds: 600`
+
+7. Verify:
    ```sql
    SELECT TABLE_SCHEMA, TABLE_NAME, ROW_COUNT
    FROM SF_SOLUTIONS.INFORMATION_SCHEMA.TABLES
@@ -82,7 +86,7 @@ Parse the action from `$ARGUMENTS`:
    ORDER BY TABLE_SCHEMA, TABLE_NAME;
    ```
 
-7. **[MANDATORY — DO NOT SKIP]** Retrieve and display the Snowflake CoWork Agent URL.
+8. **[MANDATORY — DO NOT SKIP]** Retrieve and display the Snowflake CoWork Agent URL.
    Execute this query to get the correct URLs for the current account:
    ```sql
    SELECT
@@ -106,7 +110,7 @@ Parse the action from `$ARGUMENTS`:
 
    This step is NON-OPTIONAL. The user must always see both URLs after install.
 
-8. Show final summary:
+9. Show final summary:
    ```
    Installation complete: Predictive Maintenance v1.0.0
 

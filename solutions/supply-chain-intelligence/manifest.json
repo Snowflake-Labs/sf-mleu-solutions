@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "industry": "Manufacturing",
   "source": "https://github.com/sfc-gh-rlewis/cortex_supply_chain",
-  "license": "Apache-2.0",
   "database": "SF_SOLUTIONS",
   "schemas": ["SUPPLY_CHAIN_ENTITIES"],
   "role": "ACCOUNTADMIN",

@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "industry": "Manufacturing",
   "source": "https://github.com/Snowflake-Labs/sfguide-getting-started-with-predictive-maintenance",
-  "license": "Apache-2.0",
   "database": "SF_SOLUTIONS",
   "schemas": ["MPM_BRONZE", "MPM_SILVER", "MPM_GOLD"],
   "role": "ACCOUNTADMIN",

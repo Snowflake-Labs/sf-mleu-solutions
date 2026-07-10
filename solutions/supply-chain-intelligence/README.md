@@ -81,7 +81,3 @@ Snowflake Intelligence Agent
 -- Run scripts/teardown.sql to remove all solution objects
 -- Note: SF_SOLUTIONS database and SF_SOLUTIONS_WH are shared and NOT dropped
 ```
-
-## License
-
-Apache-2.0

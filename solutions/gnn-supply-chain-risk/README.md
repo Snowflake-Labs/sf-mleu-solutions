@@ -122,7 +122,3 @@ Example queries:
 ## Teardown
 
 Execute `scripts/teardown.sql` to remove all solution objects. The shared `SF_SOLUTIONS` database and warehouse are preserved.
-
-## License
-
-MIT

@@ -9,7 +9,7 @@ An end-to-end predictive maintenance solution using Snowflake — from ingesting
 
 ## Source
 
-This solution is based on [Getting Started with Predictive Maintenance](https://github.com/Snowflake-Labs/sfguide-getting-started-with-predictive-maintenance) from Snowflake-Labs (MIT License). Refer to the original repository for detailed walkthroughs, Streamlit app code, and notebook guides.
+This solution is based on [Getting Started with Predictive Maintenance](https://github.com/Snowflake-Labs/sfguide-getting-started-with-predictive-maintenance) from Snowflake-Labs. Refer to the original repository for detailed walkthroughs, Streamlit app code, and notebook guides.
 
 ## What's Included
 

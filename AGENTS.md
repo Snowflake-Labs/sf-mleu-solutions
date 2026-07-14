@@ -140,6 +140,7 @@ SELECT PARSE_JSON(
 solutions/<name>/
 ├── manifest.json          # Metadata: name, version, industry, schemas, features
 ├── README.md              # Architecture overview, quick start, example usage
+├── NEXT_ACTIONS.md        # Post-install verification steps shown after setup
 ├── scripts/
 │   ├── setup.sql          # DDL + object creation (no large data inserts)
 │   ├── data.sql           # Demo data INSERT statements (optional, for large datasets)
@@ -151,20 +152,15 @@ solutions/<name>/
 
 When demo data exceeds ~200 lines, extract it into a separate `data.sql` file. This prevents CoCo CLI context overflow and allows direct execution via `snow sql -f scripts/data.sql`.
 
-Plugin skills mirror this at:
-- `plugins/cortex-code/skills/<name>/SKILL.md` + `NEXT_ACTIONS.md`
-- `plugins/claude-code/skills/<name>/SKILL.md` + `NEXT_ACTIONS.md`
+The installer plugin lives in [snowflake-ai-kit](https://github.com/Snowflake-Labs/snowflake-ai-kit) (`plugins/cortex-code/skills/sf-solutions/`). This repo only contains the solution source code and metadata.
 
-### Skill Invocation Prefixes
+### Skill Invocation
 
-The two supported AI CLI platforms use different trigger characters:
+Solutions are installed via the `sf-solutions` skill in [snowflake-ai-kit](https://github.com/Snowflake-Labs/snowflake-ai-kit):
 
-| Platform | Prefix | Example |
-|----------|--------|---------|
-| Cortex Code | `$` | `$sf-mleu-solutions:predictive-maintenance` |
-| Claude Code CLI | `/` | `/sf-mleu-solutions:predictive-maintenance` |
-
-When writing SKILL.md files, always use the correct prefix for the target platform in usage help and examples.
+| Platform | Command | Example |
+|----------|---------|---------|
+| Cortex Code | `$sf-solutions:<name>` | `$sf-solutions:predictive-maintenance` |
 
 ### Snowsight URL Patterns
 
@@ -225,7 +221,6 @@ All PRs must pass:
 1. **markdownlint** — all `*.md` files
 2. **sqruff** — all `*.sql` files (`--format github-annotation-native`)
 3. **ruff check + format** — all `*.py` files
-4. **skills-purity** — no code files (`.py`, `.sql`) inside `skills/` directories
 
 ### Local Pre-commit Hooks
 
@@ -239,7 +234,6 @@ pre-commit install --hook-type commit-msg
 This enables:
 - **check-json** — validates `.json` files
 - **markdownlint** — lints `.md` files
-- **no-code-in-skills** — ensures `skills/` contains only `.md`, `.json`, `.yaml`, `.yml`
 - **conventional-pre-commit** — enforces [Conventional Commits](https://www.conventionalcommits.org/) message format
 
 Commit messages must use one of: `feat`, `fix`, `chore`, `docs`, `refactor`, `ci`, `test`.
@@ -301,10 +295,8 @@ Include the following checklist in PR descriptions. All items must pass before m
 
 ## Test Plan
 - [ ] Verify `uv run sqruff lint solutions/<solution-name>/scripts/` passes
-- [ ] Run `$sf-mleu-solutions:<solution-name>` in Cortex Code to confirm install works
-- [ ] Run `$sf-mleu-solutions:<solution-name> teardown` in Cortex Code to confirm teardown works
-- [ ] Run `/sf-mleu-solutions:<solution-name>` to confirm install in Claude Code
-- [ ] Run `/sf-mleu-solutions:<solution-name> teardown` to confirm teardown works in Claude Code
+- [ ] Run `$sf-solutions:<solution-name>` in Cortex Code to confirm install works
+- [ ] Run `$sf-solutions:<solution-name> teardown` to confirm teardown works
 
 ## Screenshots
 <!-- SiS runtime screenshots if UI changes are included -->

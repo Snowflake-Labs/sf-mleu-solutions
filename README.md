@@ -18,46 +18,20 @@ End-to-end solution accelerators for the MLEU industry vertical, built on Snowfl
 
 ## Quick Install (via Cortex Code)
 
-Install any solution using the Cortex Code plugin:
+Install any solution using the `sf-solutions` skill from [snowflake-ai-kit](https://github.com/Snowflake-Labs/snowflake-ai-kit):
 
 ```bash
-# Permanent install (copies plugin to cache — survives restarts)
-# TBA: Public install (available after repo goes public) cortex plugin install "Snowflake-Labs/sf-mleu-solutions/plugins/cortex-code"
-
-# Or load locally during development (reads directly from disk, always up-to-date)
-git clone git@github.com:Snowflake-Labs/sf-mleu-solutions.git
-cd sf-mleu-solutions
-cortex --plugin-dir ./plugins/cortex-code
+# Install the snowflake-ai-kit plugin (includes the sf-solutions skill)
+cortex plugin install "Snowflake-Labs/snowflake-ai-kit/plugins/cortex-code"
 ```
 
-> **Note:** `cortex plugin install` copies the plugin into a local cache. If you add new skills later, you must `cortex plugin uninstall sf-mleu-solutions && cortex plugin install ...` to refresh. During development, use `--plugin-dir` instead — it always reads the latest files from disk without caching.
-
-Then in a Cortex Code session, run a solution by name:
+Then in a Cortex Code session:
 
 ```
-$sf-mleu-solutions:<solution-name>
-```
-
-Example:
-```
-$sf-mleu-solutions:predictive-maintenance
-$sf-mleu-solutions:predictive-maintenance teardown
-```
-
-## Quick Install (via Claude Code)
-
-```bash
-# TBA: Public install (available after repo goes public)
-
-# Or load locally during development
-git clone git@github.com:Snowflake-Labs/sf-mleu-solutions.git
-cd sf-mleu-solutions
-claude --plugin-dir ./plugins/claude-code
-```
-
-Then in a Claude Code session, run a solution by name:
-```
-/sf-mleu-solutions:predictive-maintenance
+$sf-solutions                              # List all available solutions
+$sf-solutions mleu                         # Filter by MLEU industry
+$sf-solutions:predictive-maintenance       # Install a solution
+$sf-solutions:predictive-maintenance teardown  # Remove a solution
 ```
 
 ---
@@ -70,8 +44,9 @@ Each solution is self-contained in its own directory with:
 solutions/<solution-name>/
 ├── README.md          # Overview, architecture, prerequisites
 ├── manifest.json      # Solution metadata for the installer
+├── NEXT_ACTIONS.md    # Post-install verification steps and example queries
 ├── scripts/           # SQL setup and teardown scripts
-└── data/              # Sample data generation scripts (if applicable)
+└── streamlit/         # Streamlit app (if applicable)
 ```
 
 ## Prerequisites

@@ -1,0 +1,23 @@
+{
+  "name": "irops-intelligence-center",
+  "display_name": "IROPS Intelligence Center for Network Operations Control",
+  "version": "0.1.0",
+  "industry": "Airlines & Transportation",
+  "description": "AI-powered flight operations command center for Network Operations Control (OCC). Ranks explainable flight delay risk, quantifies disruption cascade and revenue-at-risk, monitors route-day OTP and flight-leg average delay via governed Dynamic Tables, and orchestrates SOP-grounded recovery using Cortex Analyst and Cortex Search.",
+  "source": "",
+  "database": "SF_SOLUTIONS",
+  "schemas": ["IROPS_RAW", "IROPS_DATA_MART", "IROPS_CORTEX"],
+  "role": "ACCOUNTADMIN",
+  "requires_warehouse": true,
+  "requires_spcs": false,
+  "install_scripts": ["scripts/setup.sql", "scripts/data.sql"],
+  "teardown_scripts": ["scripts/teardown.sql"],
+  "features": [
+    "Dynamic Tables (incremental OTP / delay metrics)",
+    "Cortex Analyst (Semantic View)",
+    "Least-privilege RBAC (scoped analytics role)",
+    "Flight delay risk scoring",
+    "Revenue-at-risk quantification"
+  ],
+  "notes": "Demo data loaded from scripts/data.sql. In production, replace RAW_FLIGHTS with your operational data feed. The delay-risk scores in DT_FLIGHT_RISK_REALTIME are proxy values; connect a real ML scorer for production use."
+}

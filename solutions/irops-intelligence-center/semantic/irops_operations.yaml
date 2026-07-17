@@ -1,0 +1,102 @@
+# =============================================================================
+# semantic_view.yaml
+# Component: cmp-semantic-view-script (Semantic Views)
+# Traces to: cap-monitor-otp-departure-rate, cap-monitor-avg-delay-minutes,
+#            cap-predict-delay-risk, cap-analyze-disruption-cost
+#
+# RUNNABLE net-new semantic view feeding cmp-cortex-analyst. Base-table columns
+# are ENUMERATED explicitly (no wildcard projection) so partition pruning
+# applies (WAF performance_optimization). Overlays the net-new governed OTP /
+# average-delay metrics onto the Analyst-queryable semantic layer.
+#
+# Grain discipline:
+#   * OTP-departure-rate      -> ROUTE-DAY grain   [intake job-monitor-otp-trends]
+#   * average-delay-minutes   -> FLIGHT-LEG grain  [intake job-monitor-otp-trends]
+#   * MUST NOT use FACT_ATC_EVENTS.avg_delay_minutes (ATC-event grain — wrong KPI)
+#
+# Provenance:
+#   * raw STATUS enum + delay_minutes  [repo@9a0c2105 V1.0.0__create_raw_tables.sql]
+#   * realtime_risk_score / revenue_at_risk from the governed serving DT
+#     [repo@e74f234b dt_flight_risk_realtime.sql]
+# =============================================================================
+name: irop_operations_semantic
+description: >-
+  Governed IROP operations semantic view for Cortex Analyst. Columns are
+  enumerated (no wildcard projection) so pruning applies. Surfaces net-new
+  route-day OTP rate and flight-leg average delay alongside the grounded
+  real-time delay-risk and revenue-at-risk measures.
+
+base_tables:
+  # Raw flight legs — source of the net-new OTP + average-delay metrics.
+  # [repo@9a0c2105 src/database/migrations/V1.0.0__create_raw_tables.sql -> raw_flights]
+  - name: flights
+    database: SF_SOLUTIONS
+    schema: IROPS_RAW
+    table: RAW_FLIGHTS
+    columns:
+      - flight_id
+      - flight_date
+      - airline_code
+      - flight_number
+      - origin_airport
+      - destination_airport
+      - scheduled_departure
+      - status
+      - delay_minutes
+
+  # Governed serving Dynamic Table — grounded delay-risk + revenue-at-risk.
+  # [repo@e74f234b src/database/dynamic_tables/dt_flight_risk_realtime.sql]
+  - name: flight_risk
+    database: SF_SOLUTIONS
+    schema: IROPS_DATA_MART
+    table: DT_FLIGHT_RISK_REALTIME
+    columns:
+      - flight_id
+      - flight_date
+      - origin_airport
+      - destination_airport
+      - scheduled_departure
+      - realtime_risk_score
+      - propagated_risk_score
+      - is_hidden_risk
+      - revenue_at_risk
+
+dimensions:
+  - name: flight_date
+    expr: flights.flight_date
+    description: Operating date of the flight leg.
+  - name: origin_airport
+    expr: flights.origin_airport
+    description: Departure station IATA code (route origin).
+  - name: destination_airport
+    expr: flights.destination_airport
+    description: Arrival station IATA code (route destination).
+
+measures:
+  # NET-NEW governed On-Time Departure rate — ROUTE-DAY grain, percent, up is better.
+  # A cancellation is never "on time"; STATUS='ON_TIME' is the numerator.
+  # [intake job-monitor-otp-trends -> "On-time departure rate"]
+  - name: otp_departure_rate_pct
+    expr: >-
+      100.0 * sum(case when flights.status = 'ON_TIME' then 1 else 0 end)
+      / nullif(count(flights.flight_id), 0)
+    description: Route-day on-time departure rate as a percent (governed, net-new).
+
+  # NET-NEW governed average delay minutes — FLIGHT-LEG grain, minutes, down is better.
+  # [intake job-monitor-otp-trends -> "Average delay minutes"]
+  - name: avg_delay_minutes
+    expr: avg(coalesce(flights.delay_minutes, 0))
+    description: Flight-leg average delay in minutes (governed, net-new).
+
+  # GROUNDED real-time delay-risk score from the serving DT.
+  # [repo@e74f234b dt_flight_risk_realtime.sql -> realtime_risk_score]
+  - name: avg_realtime_risk_score
+    expr: avg(flight_risk.realtime_risk_score)
+    description: Average XGBoost-derived real-time delay-risk score for the scored legs.
+
+  # GROUNDED revenue-at-risk exposure from the serving DT (a revenue-exposure
+  # proxy — NOT the operational cost-per-disruption KPI, which stays a gap).
+  # [repo@e74f234b dt_flight_risk_realtime.sql -> revenue_at_risk]
+  - name: total_revenue_at_risk
+    expr: sum(flight_risk.revenue_at_risk)
+    description: Total passenger revenue exposed on at-risk legs (exposure proxy, not cost).

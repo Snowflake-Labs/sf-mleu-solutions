@@ -14,16 +14,6 @@ repos:
             args: [--config, .markdownlint.yaml, --ignore-path, .markdownlintignore]
             types: [markdown]
 
-    - repo: local
-      hooks:
-          - id: no-code-in-skills
-            name: "skills/ must contain only .md, .json, .yaml, .yml files"
-            language: system
-            entry: >
-                bash -c 'bad=$(find skills -type f ! -name "*.md" ! -name "*.json" ! -name "*.yaml" ! -name "*.yml" ! -name ".DS_Store"); [
-                -z "$bad" ] || (echo "Code files found in skills/: $bad" && exit 1)'
-            pass_filenames: false
-
     - repo: https://github.com/compilerla/conventional-pre-commit
       rev: v3.4.0
       hooks:

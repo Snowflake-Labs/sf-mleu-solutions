@@ -1,6 +1,0 @@
-{
-  "name": "sf-mleu-solutions",
-  "description": "Install pre-built Snowflake MLEU (Manufacturing, Logistics, Energy and Utilities) solutions into your account.",
-  "version": "1.0.0",
-  "author": "Snowflake Labs (Sho Tanaka)"
-}

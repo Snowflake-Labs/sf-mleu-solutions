@@ -18,14 +18,7 @@ End-to-end solution accelerators for the MLEU industry vertical, built on Snowfl
 
 ## Quick Install (via Cortex Code)
 
-Install any solution using the `sf-solutions` skill from [snowflake-ai-kit](https://github.com/Snowflake-Labs/snowflake-ai-kit):
-
-```bash
-# Install the snowflake-ai-kit plugin (includes the sf-solutions skill)
-cortex plugin install "Snowflake-Labs/snowflake-ai-kit/plugins/cortex-code"
-```
-
-Then in a Cortex Code session:
+> **TBA** — Plugin install command will be available after public release.
 
 ```
 $sf-solutions                              # List all available solutions

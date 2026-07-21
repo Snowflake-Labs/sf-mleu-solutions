@@ -152,11 +152,11 @@ solutions/<name>/
 
 When demo data exceeds ~200 lines, extract it into a separate `data.sql` file. This prevents CoCo CLI context overflow and allows direct execution via `snow sql -f scripts/data.sql`.
 
-The installer plugin lives in [snowflake-ai-kit](https://github.com/Snowflake-Labs/snowflake-ai-kit) (`plugins/cortex-code/skills/sf-solutions/`). This repo only contains the solution source code and metadata.
+The installer plugin is TBA (pending public release). This repo contains only the solution source code and metadata.
 
 ### Skill Invocation
 
-Solutions are installed via the `sf-solutions` skill in [snowflake-ai-kit](https://github.com/Snowflake-Labs/snowflake-ai-kit):
+Solutions are installed via the `sf-solutions` skill (TBA):
 
 | Platform | Command | Example |
 |----------|---------|---------|

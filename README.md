@@ -4,6 +4,14 @@
 
 End-to-end solution accelerators for the MLEU industry vertical, built on Snowflake and Cortex Code, showcasing Cortex AI, Snowflake ML, and the modern data platform.
 
+
+## Requirements
+
+- Snowflake Trial account
+- Enterprise edition+
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) (Python package manager)
+
 ---
 
 ## Solution Catalog
@@ -41,12 +49,6 @@ solutions/<solution-name>/
 ├── scripts/           # SQL setup and teardown scripts
 └── streamlit/         # Streamlit app (if applicable)
 ```
-
-## Prerequisites
-
-- Snowflake account (Enterprise edition recommended)
-- Appropriate role with CREATE DATABASE / SCHEMA privileges
-- Warehouse (default: `COMPUTE_WH`)
 
 ---
 

@@ -75,6 +75,12 @@ Open [Snowflake CoWork](https://ai.snowflake.com/) and select the **Predictive M
 @scripts/teardown.sql
 ```
 
+## Related Resources
+
+A hands-on Quickstart guide is available on the Snowflake Developer Portal:
+
+- [Predictive Maintenance with Snowflake Cortex](https://www.snowflake.com/en/developers/guides/predictive-maintenance-with-snowflake-cortex/) — Step-by-step guide covering data ingestion, feature engineering, model training, and deployment using Snowflake Cortex and ML features.
+
 ## Prerequisites
 
 - Snowflake account with **ACCOUNTADMIN** role

@@ -5,6 +5,7 @@ Project-level instructions for AI coding assistants working on this repository.
 ## Important Rules
 
 - **Never commit or push without explicit user instruction.** Only run `git commit` or `git push` when the user explicitly says "commit", "push", or "commit push".
+- **Never push directly to main.** Always create a branch, commit there, and open a PR.
 
 ## Project Overview
 

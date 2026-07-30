@@ -27,7 +27,7 @@ Parse the action from `$ARGUMENTS`:
 
 ## Install
 
-1. Locate the sf-mleu-solutions repository (search `~/project`, `$PWD`, then clone to `~/.cache/sf-solutions/`).
+1. Locate the sf-mleu-solutions repository (search `$PWD`, then clone to `~/.cache/sf-solutions/`).
 
 2. Read `solutions/predictive-maintenance/manifest.json` from the repository.
 

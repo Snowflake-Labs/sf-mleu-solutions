@@ -1,5 +1,7 @@
 # Snowflake MLEU Industry Solutions
 
+Disclaimer: This application is not part of the Snowflake Service and is governed by the terms in LICENSE, unless expressly agreed to in writing. You use this application at your own risk, and Snowflake has no obligation to support your use of this application. [Learn more](./LEGAL.md)
+
 **MLEU: Manufacturing, Logistics, Energy and Utilities**
 
 End-to-end solution accelerators for the MLEU industry vertical, built on Snowflake and Cortex Code, showcasing Cortex AI, Snowflake ML, and the modern data platform.

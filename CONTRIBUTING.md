@@ -1,112 +1,108 @@
-# Contributing to sf-solutions
+# Contributing to sf-mleu-solutions
 
-Thank you for contributing to Snowflake Industry Solutions!
+Thank you for contributing to Snowflake Manufacturing, Logistics, Energy and Utilities Solutions!
 
-## Repository Structure
+> **Note:** Only Snowflake employees may contribute to this repository. External contributions are not accepted.
+
+## Solution Types
+
+This repository supports two types of solutions:
+
+### Script Type
+
+Solutions that install Snowflake objects (databases, schemas, tables, models, agents) via SQL scripts and optionally include Python components (Streamlit apps, stored procedures, UDFs).
 
 ```
-sf-solutions/
-├── .claude-plugin/           # Root marketplace manifest for Claude Code
-├── plugins/
-│   ├── claude-code/          # Claude Code plugin (skills + manifests)
-│   │   ├── .claude-plugin/
-│   │   └── skills/<solution-name>/
-│   └── cortex-code/          # Cortex Code plugin (skills + manifest)
-│       ├── .cortex-plugin/
-│       └── skills/<solution-name>/
-├── solutions/
-│   └── <solution-name>/      # Solution assets (SQL, Streamlit, prompts)
-│       ├── manifest.json
-│       ├── scripts/setup.sql
-│       ├── scripts/teardown.sql
-│       └── streamlit/        # Optional dashboard
-└── README.md
+solutions/<solution-name>/
+├── manifest.json          # Solution metadata (type: "script")
+├── README.md              # Architecture overview, quick start
+├── NEXT_ACTIONS.md        # Post-install guidance
+├── scripts/
+│   ├── setup.sql          # Installation script
+│   ├── teardown.sql       # Cleanup script
+│   └── data.sql           # Demo data (optional, for large datasets)
+└── streamlit/             # Optional dashboard
+    ├── streamlit_app.py
+    └── environment.yml
+```
+
+### Plugin Type (CoCo plugin)
+
+Solutions that install a Cortex Code plugin with skills, agents, and optionally Snowflake objects.
+
+```
+solutions/<solution-name>/
+├── manifest.json          # Solution metadata (type: "plugin")
+├── README.md              # Overview, usage
+├── plugins/cortex-code/   # CoCo plugin directory
+│   ├── .cortex-plugin/
+│   │   └── plugin.json
+│   └── skills/
+│       └── ...
+└── scripts/               # Optional SQL scripts
 ```
 
 ## Adding a New Solution
 
-When adding a new solution, you must create files in **three** places:
-
-### 1. `solutions/<solution-name>/`
-
-All SQL scripts, Streamlit apps, data, and prompts go here.
-
-Required files:
-- `manifest.json` — solution metadata (name, industry, database, schemas, features)
-- `scripts/setup.sql` — full installation script (idempotent, uses CREATE OR REPLACE)
-- `scripts/teardown.sql` — cleanup script (drops all created objects)
-
-Optional:
-- `streamlit/` — Streamlit dashboard files
-- `prompts/` — demo prompts for Cortex Code or Snowflake Intelligence
-
-### 2. `plugins/cortex-code/skills/<solution-name>/`
-
-Required:
-- `SKILL.md` — Cortex Code skill definition (frontmatter + install/teardown instructions)
-- `NEXT_ACTIONS.md` — post-install guidance (what to do after installation)
-
-### 3. `plugins/claude-code/skills/<solution-name>/`
-
-Required:
-- `SKILL.md` — Claude Code skill definition (same structure, different tool names)
-- `NEXT_ACTIONS.md` — post-install guidance (same content as cortex-code version)
-
-## File Descriptions
+### Script Type — Required Files
 
 | File | Purpose |
 |------|---------|
-| `SKILL.md` | Defines the install/teardown workflow. The agent reads this to know how to execute the solution. |
-| `NEXT_ACTIONS.md` | Answers "what should I do next?" after installation. Progressive guidance from exploration to production. |
-| `manifest.json` | Machine-readable metadata: name, version, industry, database, schemas, features, script paths. |
-| `setup.sql` | The single SQL script that creates everything (database, schemas, tables, models, Streamlit). |
-| `teardown.sql` | Drops all objects created by setup.sql. |
+| `manifest.json` | Machine-readable metadata: name, version, type, industry, database, schemas, features, script paths |
+| `README.md` | Architecture overview, quick start, and example usage |
+| `NEXT_ACTIONS.md` | Post-install guidance — answers "what should I do next?" |
+| `scripts/setup.sql` | Installation script (idempotent, uses CREATE OR REPLACE) |
+| `scripts/teardown.sql` | Cleanup script (drops all created objects) |
 
-## SKILL.md Guidelines
+Optional:
+- `streamlit/` — Streamlit dashboard files
+- `scripts/data.sql` — Demo data INSERT statements (when data exceeds ~200 lines)
 
-- Use `$ARGUMENTS` to differentiate install vs teardown
-- The **last two steps** before teardown must always be:
-  1. **Retrieve and display the Streamlit URL** (if applicable) — marked as `[MANDATORY — DO NOT SKIP]`
-  2. **Show the final summary with Next Actions**
-- Include a `## Next Actions` section that references NEXT_ACTIONS.md
-- The step numbers will vary by solution (e.g., a simple solution may use Steps 5-6, a complex one Steps 9-10)
+### Plugin Type — Required Files
 
-## NEXT_ACTIONS.md Guidelines
+| File | Purpose |
+|------|---------|
+| `manifest.json` | Machine-readable metadata with `"type": "plugin"` and `"plugin_path"` |
+| `README.md` | Overview, usage instructions, skill invocation examples |
+| `plugins/cortex-code/` | CoCo plugin directory (skills, agents, hooks, etc.) |
 
-This file is read when the user asks "what next?" or "what should I do?" after installing. Structure it as progressive phases:
+## NEXT_ACTIONS.md Guidelines (Script Type Only)
+
+This file is read when the user asks "what next?" after installing. Structure it as progressive phases:
 
 1. **Quick Exploration** — immediate things to try (open dashboard, run queries)
 2. **Customize with Your Data** — how to replace demo data
 3. **Tune the Model** — adjust parameters, add features
 4. **Production Deployment** — scheduling, monitoring, RBAC
 
-## Streamlit URL Format
+## Snowsight URL Format (Script Type)
 
 Always use this format for Snowsight URLs:
+
 ```
 https://app.snowflake.com/<org>/<account>/#/streamlit-apps/<DB>.<SCHEMA>.<STREAMLIT_NAME>
 ```
 
 SQL to generate:
+
 ```sql
 SELECT 'https://app.snowflake.com/' || LOWER(CURRENT_ORGANIZATION_NAME()) || '/' || LOWER(CURRENT_ACCOUNT_NAME())
     || '/#/streamlit-apps/<DB>.<SCHEMA>.<NAME>' AS STREAMLIT_URL;
 ```
 
-## Naming Conventions
+## Naming Conventions (Script Type)
 
-- Solution directory: `kebab-case` (e.g., `ltv-prediction`, `clinical-quality-agent`)
+- Solution directory: `kebab-case` (e.g., `clinical-quality-agent`)
 - Database: `SF_SOLUTIONS` (shared across all solutions)
-- Schemas: `UPPER_SNAKE_CASE` (e.g., `LTV_RAW`, `LTV_ANALYTICS`, `LTV_ML`)
-- Streamlit apps: `UPPER_SNAKE_CASE` (e.g., `LTV_PREDICTION_DASHBOARD`)
+- Schemas: `UPPER_SNAKE_CASE` (e.g., `CLINICAL_QUALITY_SAFETY`)
+- Streamlit apps: `UPPER_SNAKE_CASE` (e.g., `CLINICAL_QUALITY_DASHBOARD`)
 
-## Testing
+## Testing (Script Type)
 
 Before submitting a PR:
-1. Load plugin in Cortex Code CLI
-2. Load plugin in Claude Code CLI
-3. Run `setup.sql` end-to-end on a clean account
-4. Verify all objects are created (check INFORMATION_SCHEMA)
-5. Open the Streamlit dashboard URL and confirm it loads without errors
-6. Run `teardown.sql` and verify everything is removed
-7. Test both Cortex Code (`$snowflake-solutions:<name>`) and Claude Code (`/snowflake-solutions:<name>`) skill execution
+
+1. Run `setup.sql` end-to-end on a clean account (script type)
+2. Verify all objects are created (check INFORMATION_SCHEMA)
+3. Open the Streamlit dashboard URL and confirm it loads without errors
+4. Run `teardown.sql` and verify everything is removed
+5. Test skill execution: `$sf-solutions:<solution-name>`

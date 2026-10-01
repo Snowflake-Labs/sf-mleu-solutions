@@ -58,14 +58,12 @@ logs/
 
 # Snowflake
 snowflake_jwt_*.json
-
-# Local files
-local.README.md
-20260518_ISF_solutions.csv
-retail-demand-forecasting/
-
 .snowflake
 .cortex
 
+# Local files
+local.README.md
+
+# Linter cache
 .ruff_cache
 work

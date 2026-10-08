@@ -3,6 +3,7 @@
   "display_name": "Predictive Maintenance",
   "version": "1.0.0",
   "industry": "Manufacturing",
+  "description": "End-to-end predictive maintenance from IoT sensor telemetry and maintenance logs to a medallion data pipeline, Streamlit dashboard, and natural-language queries with Snowflake CoWork.",
   "source": "https://github.com/Snowflake-Labs/sfguide-getting-started-with-predictive-maintenance",
   "database": "SF_SOLUTIONS",
   "schemas": ["MPM_BRONZE", "MPM_SILVER", "MPM_GOLD"],

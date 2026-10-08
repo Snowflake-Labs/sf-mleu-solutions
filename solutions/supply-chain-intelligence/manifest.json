@@ -3,6 +3,7 @@
   "display_name": "Supply Chain Intelligence Platform",
   "version": "1.0.0",
   "industry": "Manufacturing",
+  "description": "AI-powered supply chain assistant that answers questions about inventory, orders, shipments, and supply chain documentation using Cortex Analyst and Cortex Search.",
   "source": "https://github.com/sfc-gh-rlewis/cortex_supply_chain",
   "database": "SF_SOLUTIONS",
   "schemas": ["SUPPLY_CHAIN_ENTITIES"],

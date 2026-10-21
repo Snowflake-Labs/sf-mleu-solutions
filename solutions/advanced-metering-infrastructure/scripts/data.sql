@@ -1,0 +1,537 @@
+-- =============================================================================
+-- Solution: Advanced Metering Infrastructure (AMI 2.0) - data
+-- Database: SF_SOLUTIONS
+-- Schemas:  AMI_RAW, AMI_CURATED, AMI_MART, AMI_OBSERVABILITY, AMI_ML, AMI_SHARED
+-- Generates synthetic dimensions and 12 months of 15-minute history (one statement per month).
+-- Run after setup.sql. Approx. 30-45 min on a LARGE warehouse at 100K meters.
+-- =============================================================================
+
+USE ROLE ACCOUNTADMIN;
+USE DATABASE SF_SOLUTIONS;
+USE WAREHOUSE SF_SOLUTIONS_WH;
+
+-- -------------------------------------------------------------------------
+-- Dimensions, rate plans, time dimension, billing periods
+-- Source: sql/01_dimensions/02_populate_dimensions.sql
+-- -------------------------------------------------------------------------
+
+USE DATABASE SF_SOLUTIONS;
+USE SCHEMA AMI_CURATED;
+USE WAREHOUSE SF_SOLUTIONS_WH;
+
+-- ---- Config table: change N_METERS before running to scale the demo ---
+CREATE TABLE IF NOT EXISTS AMI_CONFIG (KEY VARCHAR, VALUE VARCHAR);
+MERGE INTO AMI_CONFIG t USING (SELECT 'N_METERS' AS KEY, '100000' AS VALUE) s
+  ON t.KEY = s.KEY
+  WHEN NOT MATCHED THEN INSERT VALUES (s.KEY, s.VALUE);
+
+-- Read into a session variable for the rest of this script
+SET N_METERS = (SELECT VALUE::NUMBER FROM AMI_CONFIG WHERE KEY = 'N_METERS');
+
+-- Derived counts
+SET N_SUBSTATIONS = 50;
+SET N_FEEDERS     = GREATEST(FLOOR($N_METERS / 50), 20);
+SET N_XFORMERS    = GREATEST(FLOOR($N_METERS / 5), 100);
+
+-- 4 territories with representative timezones
+-- Substations (50): placed inside their territory's bounding box
+INSERT INTO SUBSTATION
+SELECT
+  SUBSTATION_ID, SUBSTATION_NAME, UTILITY_TERRITORY,
+  CASE UTILITY_TERRITORY
+    WHEN 'NE' THEN UNIFORM(39.5::FLOAT, 44.5::FLOAT, RANDOM())
+    WHEN 'SE' THEN UNIFORM(30.5::FLOAT, 35.5::FLOAT, RANDOM())
+    WHEN 'MW' THEN UNIFORM(38.5::FLOAT, 45.0::FLOAT, RANDOM())
+    ELSE           UNIFORM(34.0::FLOAT, 46.0::FLOAT, RANDOM())
+  END AS LAT,
+  CASE UTILITY_TERRITORY
+    WHEN 'NE' THEN UNIFORM(-79.0::FLOAT, -71.0::FLOAT, RANDOM())
+    WHEN 'SE' THEN UNIFORM(-90.0::FLOAT, -79.0::FLOAT, RANDOM())
+    WHEN 'MW' THEN UNIFORM(-97.0::FLOAT, -85.0::FLOAT, RANDOM())
+    ELSE           UNIFORM(-122.0::FLOAT, -113.0::FLOAT, RANDOM())
+  END AS LON
+FROM (
+  -- ROW_NUMBER, not SEQ4(): SEQ4() is not gap-free and is unsafe in joins
+  SELECT
+    'SUB-' || LPAD(n,4,'0') AS SUBSTATION_ID,
+    'Substation ' || n      AS SUBSTATION_NAME,
+    CASE MOD(n,4) WHEN 0 THEN 'NE' WHEN 1 THEN 'SE' WHEN 2 THEN 'MW' ELSE 'W' END AS UTILITY_TERRITORY
+  FROM (SELECT ROW_NUMBER() OVER (ORDER BY SEQ4()) - 1 AS n FROM TABLE(GENERATOR(ROWCOUNT => 50)))
+);
+
+-- Feeders: $N_FEEDERS, cycling across substations
+INSERT INTO FEEDER
+SELECT
+  'FDR-' || LPAD(g.n,5,'0')  AS FEEDER_ID,
+  s.SUBSTATION_ID,
+  s.UTILITY_TERRITORY,
+  CASE MOD(g.n,3) WHEN 0 THEN 4.16 WHEN 1 THEN 13.2 ELSE 34.5 END AS VOLTAGE_KV
+FROM (SELECT ROW_NUMBER() OVER (ORDER BY SEQ4()) - 1 AS n FROM TABLE(GENERATOR(ROWCOUNT => $N_FEEDERS))) g
+JOIN (SELECT SUBSTATION_ID, UTILITY_TERRITORY, ROW_NUMBER() OVER (ORDER BY SUBSTATION_ID) rn FROM SUBSTATION) s
+  ON s.rn = MOD(g.n, $N_SUBSTATIONS) + 1;
+
+-- Transformers: $N_XFORMERS, cycling across feeders
+INSERT INTO TRANSFORMER
+SELECT
+  'XFM-' || LPAD(g.n,6,'0')  AS TRANSFORMER_ID,
+  f.FEEDER_ID,
+  CASE MOD(g.n,4) WHEN 0 THEN 25 WHEN 1 THEN 50 WHEN 2 THEN 100 ELSE 250 END AS KVA_RATING,
+  CASE MOD(g.n,2) WHEN 0 THEN 'SINGLE' ELSE 'THREE' END AS PHASE
+FROM (SELECT ROW_NUMBER() OVER (ORDER BY SEQ4()) - 1 AS n FROM TABLE(GENERATOR(ROWCOUNT => $N_XFORMERS))) g
+JOIN (SELECT FEEDER_ID, ROW_NUMBER() OVER (ORDER BY FEEDER_ID) rn FROM FEEDER) f
+  ON f.rn = MOD(g.n, $N_FEEDERS) + 1;
+
+-- Service points: $N_METERS, cycling across transformers.
+-- Location = substation + a fixed per-feeder offset (HASH-seeded, ~15 km)
+-- + per-premise jitter (~2 km), so feeders fan out around their substation.
+INSERT INTO SERVICE_POINT
+SELECT
+  'SP-' || LPAD(g.n,6,'0')   AS SERVICE_POINT_ID,
+  'ADDR-' || LPAD(g.n,6,'0') AS ADDRESS_ID,
+  CASE
+    WHEN UNIFORM(0,100,RANDOM()) < 80 THEN 'RES'
+    WHEN UNIFORM(0,100,RANDOM()) < 95 THEN 'SMB'
+    ELSE 'CNI'
+  END                           AS PREMISE_TYPE,
+  x.FEEDER_ID,
+  x.TRANSFORMER_ID,
+  f.UTILITY_TERRITORY,
+  s.LAT + UNIFORM(-0.15::FLOAT, 0.15::FLOAT, HASH(x.FEEDER_ID, 'lat'))
+        + UNIFORM(-0.02::FLOAT, 0.02::FLOAT, RANDOM()),
+  s.LON + UNIFORM(-0.15::FLOAT, 0.15::FLOAT, HASH(x.FEEDER_ID, 'lon'))
+        + UNIFORM(-0.02::FLOAT, 0.02::FLOAT, RANDOM())
+FROM (SELECT ROW_NUMBER() OVER (ORDER BY SEQ4()) - 1 AS n FROM TABLE(GENERATOR(ROWCOUNT => $N_METERS))) g
+JOIN (SELECT TRANSFORMER_ID, FEEDER_ID, ROW_NUMBER() OVER (ORDER BY TRANSFORMER_ID) rn FROM TRANSFORMER) x
+  ON x.rn = MOD(g.n, $N_XFORMERS) + 1
+JOIN FEEDER f ON f.FEEDER_ID = x.FEEDER_ID
+JOIN SUBSTATION s ON s.SUBSTATION_ID = f.SUBSTATION_ID;
+
+-- Meters: 1:1 with service points
+INSERT INTO METER
+SELECT
+  'MTR-' || LPAD(SP.rn, 6, '0') AS METER_ID,
+  SP.SERVICE_POINT_ID,
+  CASE SP.PREMISE_TYPE
+    WHEN 'RES' THEN 'RES'
+    WHEN 'SMB' THEN 'SMB'
+    ELSE 'CNI'
+  END AS METER_TYPE,
+  CASE WHEN UNIFORM(0,100,RANDOM()) < 3 THEN TRUE ELSE FALSE END AS HAS_DER,
+  DATEADD(day, -UNIFORM(365,3650,RANDOM()), CURRENT_DATE()) AS INSTALL_DATE,
+  'ACTIVE' AS STATUS,
+  SP.UTILITY_TERRITORY,
+  CASE SP.UTILITY_TERRITORY
+    WHEN 'NE' THEN 'America/New_York'
+    WHEN 'SE' THEN 'America/New_York'
+    WHEN 'MW' THEN 'America/Chicago'
+    ELSE         'America/Los_Angeles'
+  END AS TIMEZONE,
+  'FW-' || TO_CHAR(MOD(ABS(HASH(SP.SERVICE_POINT_ID)),4) + 1) || '.0' AS FIRMWARE_VERSION
+FROM (
+  SELECT SERVICE_POINT_ID, PREMISE_TYPE, UTILITY_TERRITORY,
+         ROW_NUMBER() OVER (ORDER BY SERVICE_POINT_ID) AS rn
+  FROM SERVICE_POINT
+) SP;
+
+-- TOU rate plans (synthetic): flat, 3-tier TOU, critical peak pricing
+INSERT INTO TOU_RATE_PLAN (RATE_PLAN_ID, PLAN_NAME, SEASON, CURRENCY, EFFECTIVE_FROM, EFFECTIVE_TO)
+SELECT RATE_PLAN_ID, PLAN_NAME, 'ALL', 'USD',
+       DATEADD(year, -5, CURRENT_DATE()), DATEADD(year, 5, CURRENT_DATE())
+FROM VALUES
+  ('RP-FLAT', 'Standard Flat Rate'),
+  ('RP-TOU3', 'Time-of-Use 3-Tier'),
+  ('RP-CPP',  'Critical Peak Pricing') AS v(RATE_PLAN_ID, PLAN_NAME);
+
+-- TOU rate windows: energy ($/kWh) and demand ($/kW) rates per bucket
+INSERT INTO TOU_RATE_WINDOW
+  (RATE_WINDOW_ID, RATE_PLAN_ID, DAY_TYPE, SEASON, START_TIME, END_TIME, TOU_BUCKET, ENERGY_RATE_PER_KWH, DEMAND_RATE_PER_KW)
+VALUES
+  ('RW-FLAT-ALL',     'RP-FLAT', 'WEEKDAY', 'ALL',    '00:00:00', '23:59:59', 'OFF_PEAK', 0.12, 0.0),
+  ('RW-FLAT-WE',      'RP-FLAT', 'WEEKEND', 'ALL',    '00:00:00', '23:59:59', 'OFF_PEAK', 0.12, 0.0),
+  ('RW-TOU3-WD-OFF1', 'RP-TOU3', 'WEEKDAY', 'ALL',    '00:00:00', '06:59:59', 'OFF_PEAK', 0.08, 0.0),
+  ('RW-TOU3-WD-SHO1', 'RP-TOU3', 'WEEKDAY', 'ALL',    '07:00:00', '16:59:59', 'SHOULDER', 0.14, 0.0),
+  ('RW-TOU3-WD-ON',   'RP-TOU3', 'WEEKDAY', 'ALL',    '17:00:00', '20:59:59', 'ON_PEAK',  0.28, 8.5),
+  ('RW-TOU3-WD-SHO2', 'RP-TOU3', 'WEEKDAY', 'ALL',    '21:00:00', '22:59:59', 'SHOULDER', 0.14, 0.0),
+  ('RW-TOU3-WD-OFF2', 'RP-TOU3', 'WEEKDAY', 'ALL',    '23:00:00', '23:59:59', 'OFF_PEAK', 0.08, 0.0),
+  ('RW-TOU3-WE',      'RP-TOU3', 'WEEKEND', 'ALL',    '00:00:00', '23:59:59', 'OFF_PEAK', 0.08, 0.0),
+  ('RW-CPP-WD-OFF',   'RP-CPP',  'WEEKDAY', 'ALL',    '00:00:00', '13:59:59', 'OFF_PEAK', 0.09, 0.0),
+  ('RW-CPP-WD-CRIT',  'RP-CPP',  'WEEKDAY', 'SUMMER', '14:00:00', '18:59:59', 'CRITICAL', 0.75, 15.0),
+  ('RW-CPP-WD-SHO',   'RP-CPP',  'WEEKDAY', 'ALL',    '19:00:00', '22:59:59', 'SHOULDER', 0.15, 0.0),
+  ('RW-CPP-WD-OFF2',  'RP-CPP',  'WEEKDAY', 'ALL',    '23:00:00', '23:59:59', 'OFF_PEAK', 0.09, 0.0),
+  ('RW-CPP-WE',       'RP-CPP',  'WEEKEND', 'ALL',    '00:00:00', '23:59:59', 'OFF_PEAK', 0.09, 0.0);
+
+-- Customers (1:1 with meters, 5% vacancy rate)
+INSERT INTO CUSTOMER
+SELECT
+  'CUST-' || LPAD(rn,6,'0')    AS CUSTOMER_ID,
+  'CIS-' || LPAD(rn,6,'0')     AS CIS_ACCOUNT_ID,
+  SEGMENT,
+  RATE_PLAN_ID,
+  DATEADD(day, -UNIFORM(30,1800,RANDOM()), CURRENT_DATE()) AS START_DATE,
+  NULL AS END_DATE
+FROM (
+  SELECT
+    ROW_NUMBER() OVER (ORDER BY SERVICE_POINT_ID) AS rn,
+    CASE PREMISE_TYPE WHEN 'RES' THEN 'RESIDENTIAL' WHEN 'SMB' THEN 'SMALL_BUSINESS' ELSE 'COMMERCIAL' END AS SEGMENT,
+    CASE
+      WHEN UNIFORM(0,100,RANDOM()) < 40 THEN 'RP-FLAT'
+      WHEN UNIFORM(0,100,RANDOM()) < 90 THEN 'RP-TOU3'
+      ELSE                                    'RP-CPP'
+    END AS RATE_PLAN_ID
+  FROM SERVICE_POINT
+) s
+WHERE UNIFORM(0,100,RANDOM()) > 5;  -- ~5% vacant
+
+-- SCD2 link: current membership for all meters (assume permanent for demo)
+INSERT INTO METER_SERVICE_POINT_LINK
+SELECT
+  m.METER_ID,
+  m.SERVICE_POINT_ID,
+  c.CUSTOMER_ID,
+  DATEADD(year, -1, CURRENT_DATE())::TIMESTAMP_NTZ AS EFFECTIVE_FROM,
+  NULL AS EFFECTIVE_TO,
+  TRUE AS IS_CURRENT
+FROM METER m
+LEFT JOIN CUSTOMER c
+  ON c.CUSTOMER_ID = 'CUST-' || SUBSTR(m.METER_ID, 5);
+
+-- TIME_DIM: 15-minute grain covering the past year (35136 intervals)
+INSERT INTO TIME_DIM
+SELECT
+  TS_UTC,
+  TS_UTC::DATE                     AS LOCAL_DATE,
+  TO_TIME(TS_UTC)                  AS LOCAL_TIME,
+  HOUR(TS_UTC)                     AS HOUR_LOCAL,
+  DAYOFWEEK(TS_UTC)                AS DAY_OF_WEEK,
+  CASE WHEN DAYOFWEEK(TS_UTC) IN (0,6) THEN 'WEEKEND' ELSE 'WEEKDAY' END AS DAY_TYPE,
+  MONTH(TS_UTC)                    AS MONTH,
+  CASE
+    WHEN MONTH(TS_UTC) IN (6,7,8,9) THEN 'SUMMER'
+    WHEN MONTH(TS_UTC) IN (12,1,2)  THEN 'WINTER'
+    ELSE 'SHOULDER'
+  END AS SEASON,
+  FALSE AS IS_HOLIDAY
+FROM (
+  SELECT DATEADD(minute, 15*n, DATEADD(day, -365, DATE_TRUNC('day', CURRENT_DATE())))::TIMESTAMP_NTZ AS TS_UTC
+  FROM (SELECT ROW_NUMBER() OVER (ORDER BY SEQ4()) - 1 AS n FROM TABLE(GENERATOR(ROWCOUNT => 35136)))
+);
+
+-- BILLING_PERIOD: 12 monthly periods per customer
+INSERT INTO BILLING_PERIOD
+SELECT
+  'BP-' || c.CIS_ACCOUNT_ID || '-' || TO_CHAR(d.start_dt, 'YYYYMM') AS BILLING_PERIOD_ID,
+  c.CIS_ACCOUNT_ID,
+  m.SERVICE_POINT_ID,
+  'CYCLE-01' AS BILL_CYCLE,
+  d.start_dt AS START_DATE,
+  DATEADD(day, -1, DATEADD(month, 1, d.start_dt)) AS END_DATE,
+  NULL AS CIS_BILLED_KWH
+FROM CUSTOMER c
+JOIN METER_SERVICE_POINT_LINK l ON l.CUSTOMER_ID = c.CUSTOMER_ID
+JOIN METER m ON m.METER_ID = l.METER_ID
+CROSS JOIN (
+  SELECT DATEADD(month, n, DATE_TRUNC('month', DATEADD(year, -1, CURRENT_DATE())))::DATE AS start_dt
+  FROM (SELECT ROW_NUMBER() OVER (ORDER BY SEQ4()) - 1 AS n FROM TABLE(GENERATOR(ROWCOUNT => 12)))
+) d;
+
+-- 12 months of interval history, one month per statement (offset 0 = current month)
+USE SCHEMA SF_SOLUTIONS.AMI_CURATED;
+CALL SP_GENERATE_MONTH(0);
+CALL SP_GENERATE_MONTH(1);
+CALL SP_GENERATE_MONTH(2);
+CALL SP_GENERATE_MONTH(3);
+CALL SP_GENERATE_MONTH(4);
+CALL SP_GENERATE_MONTH(5);
+CALL SP_GENERATE_MONTH(6);
+CALL SP_GENERATE_MONTH(7);
+CALL SP_GENERATE_MONTH(8);
+CALL SP_GENERATE_MONTH(9);
+CALL SP_GENERATE_MONTH(10);
+CALL SP_GENERATE_MONTH(11);
+CALL SP_GENERATE_MONTH(12);
+
+-- -------------------------------------------------------------------------
+-- Labeled anomaly scenarios (spike, outage, voltage sag)
+-- Source: sql/10_synthetic_data/02_inject_scenarios.sql
+-- -------------------------------------------------------------------------
+
+USE DATABASE SF_SOLUTIONS;
+USE SCHEMA AMI_CURATED;
+USE WAREHOUSE SF_SOLUTIONS_WH;
+
+SET SPIKE_DAY  = DATEADD(day, -252, DATE_TRUNC('day', CURRENT_DATE()))::TIMESTAMP_NTZ;
+SET OUTAGE_DAY = DATEADD(day, -165, DATE_TRUNC('day', CURRENT_DATE()))::TIMESTAMP_NTZ;
+SET SAG_DAY    = DATEADD(day, -99,  DATE_TRUNC('day', CURRENT_DATE()))::TIMESTAMP_NTZ;
+
+-- ---- Load spike (possible tamper / theft pattern) ---------------------
+UPDATE AMI_CURATED.INTERVAL_READ_15MIN
+SET KWH_DELIVERED = KWH_DELIVERED * 3.0,
+    DEMAND_KW     = DEMAND_KW * 3.0
+WHERE (METER_ID, READ_TS) IN (
+  SELECT m.METER_ID, t.TS_UTC
+  FROM (SELECT METER_ID FROM AMI_CURATED.METER WHERE METER_TYPE = 'RES' ORDER BY RANDOM() LIMIT 50) m
+  CROSS JOIN (
+    SELECT TS_UTC FROM AMI_CURATED.TIME_DIM
+    WHERE TS_UTC BETWEEN DATEADD(hour, 18, $SPIKE_DAY) AND DATEADD(minute, 21*60+45, $SPIKE_DAY)
+  ) t
+);
+
+-- ---- Storm outage -----------------------------------------------------
+UPDATE AMI_CURATED.INTERVAL_READ_15MIN
+SET KWH_DELIVERED = 0, KWH_RECEIVED = 0, DEMAND_KW = 0,
+    QUALITY_FLAG = 'F', VEE_STATUS = 'FAILED'
+WHERE (METER_ID, READ_TS) IN (
+  SELECT m.METER_ID, t.TS_UTC
+  FROM (SELECT METER_ID FROM AMI_CURATED.METER ORDER BY RANDOM() LIMIT 30) m
+  CROSS JOIN (
+    SELECT TS_UTC FROM AMI_CURATED.TIME_DIM
+    WHERE TS_UTC BETWEEN $OUTAGE_DAY AND DATEADD(day, 2, $OUTAGE_DAY)
+  ) t
+);
+
+-- ---- Voltage sag (transformer overload) -------------------------------
+UPDATE AMI_CURATED.INTERVAL_READ_15MIN
+SET VOLTAGE_V = 195 + NORMAL(0, 2, RANDOM())
+WHERE (METER_ID, READ_TS) IN (
+  SELECT m.METER_ID, t.TS_UTC
+  FROM (SELECT METER_ID FROM AMI_CURATED.METER ORDER BY RANDOM() LIMIT 20) m
+  CROSS JOIN (
+    SELECT TS_UTC FROM AMI_CURATED.TIME_DIM
+    WHERE TS_UTC BETWEEN DATEADD(hour, 14, $SAG_DAY) AND DATEADD(hour, 15, $SAG_DAY)
+  ) t
+);
+
+-- ---- Ground-truth label table (populate when labelling anomalies) -----
+CREATE OR REPLACE TABLE LABELED_ANOMALIES (
+  METER_ID      VARCHAR,
+  ANOMALY_TYPE  VARCHAR,
+  START_TS      TIMESTAMP_NTZ,
+  END_TS        TIMESTAMP_NTZ
+);
+
+-- ---- Outage events for the storm meters -------------------------------
+INSERT INTO AMI_RAW.METER_EVENT
+SELECT
+  'EVT-OUT-' || METER_ID || '-' || TO_CHAR(START_TS, 'YYYYMMDDHH24MI'),
+  METER_ID,
+  START_TS,
+  'OUTAGE',
+  OBJECT_CONSTRUCT('duration_hours', DATEDIFF(hour, START_TS, END_TS), 'cause', 'STORM')
+FROM (
+  SELECT DISTINCT METER_ID,
+    $OUTAGE_DAY                   AS START_TS,
+    DATEADD(day, 2, $OUTAGE_DAY)  AS END_TS
+  FROM AMI_CURATED.INTERVAL_READ_15MIN
+  WHERE READ_TS = DATEADD(hour, 6, $OUTAGE_DAY)
+    AND KWH_DELIVERED = 0
+    AND VEE_STATUS = 'FAILED'
+);
+
+-- -------------------------------------------------------------------------
+-- Channel-keyed long-form model
+-- Source: sql/01_dimensions/03_channels.sql
+-- -------------------------------------------------------------------------
+
+USE DATABASE SF_SOLUTIONS;
+USE SCHEMA AMI_CURATED;
+
+-- ---- Channel catalog (reference / extensible) ------------------------
+CREATE OR REPLACE TABLE CHANNEL_CATALOG (
+  CHANNEL_CODE   VARCHAR      NOT NULL,  -- canonical code
+  CHANNEL_NUMBER NUMBER,                  -- ANSI C12.19-style number
+  UOM            VARCHAR,                 -- KWH, KW, V, KVARH, KVAR, A, RATIO
+  DIRECTION      VARCHAR,                 -- DELIVERED, RECEIVED, NET, NONE
+  FLOW_TYPE      VARCHAR,                 -- REAL, REACTIVE, APPARENT, VOLTAGE, CURRENT
+  AGGREGATION    VARCHAR,                 -- SUM, MAX, MIN, AVG
+  DESCRIPTION    VARCHAR,
+  IS_ACTIVE      BOOLEAN,                 -- TRUE if currently emitted
+  CONSTRAINT PK_CHANNEL_CATALOG PRIMARY KEY (CHANNEL_CODE)
+);
+
+INSERT INTO CHANNEL_CATALOG VALUES
+  -- Channels we actually emit today
+  ('KWH_DEL',  1,  'KWH',   'DELIVERED', 'REAL',      'SUM', 'Real energy delivered to premise',         TRUE),
+  ('KWH_REC',  2,  'KWH',   'RECEIVED',  'REAL',      'SUM', 'Real energy exported by premise (DER)',    TRUE),
+  ('KW_DEM',   5,  'KW',    'DELIVERED', 'REAL',      'MAX', 'Peak real power demand in interval',       TRUE),
+  ('VOLT_AVG', 21, 'V',     'NONE',      'VOLTAGE',   'AVG', 'Average voltage in interval',              TRUE),
+  -- Catalog-only (future extensions; no measurement yet)
+  ('KVARH_D',  7,  'KVARH', 'DELIVERED', 'REACTIVE',  'SUM', 'Reactive energy delivered',                FALSE),
+  ('KVARH_R',  8,  'KVARH', 'RECEIVED',  'REACTIVE',  'SUM', 'Reactive energy received',                 FALSE),
+  ('KVAR_DEM', 9,  'KVAR',  'DELIVERED', 'REACTIVE',  'MAX', 'Peak reactive demand in interval',         FALSE),
+  ('VOLT_MIN', 22, 'V',     'NONE',      'VOLTAGE',   'MIN', 'Min voltage in interval',                  FALSE),
+  ('VOLT_MAX', 23, 'V',     'NONE',      'VOLTAGE',   'MAX', 'Max voltage in interval',                  FALSE),
+  ('AMPS',     31, 'A',     'NONE',      'CURRENT',   'AVG', 'Average current in interval',              FALSE),
+  ('PF',       40, 'RATIO', 'NONE',      'APPARENT',  'AVG', 'Power factor',                             FALSE);
+
+-- ---- Meter-channel (per-meter instantiation) -------------------------
+CREATE OR REPLACE TABLE METER_CHANNEL (
+  CHANNEL_ID      VARCHAR      NOT NULL,   -- METER_ID || '-' || CHANNEL_CODE
+  METER_ID        VARCHAR      NOT NULL,
+  CHANNEL_CODE    VARCHAR      NOT NULL,
+  CHANNEL_NUMBER  NUMBER,
+  UOM             VARCHAR,
+  DIRECTION       VARCHAR,
+  AGGREGATION     VARCHAR,
+  INTERVAL_MIN    NUMBER       DEFAULT 15,
+  SCALE_FACTOR    NUMBER(10,4) DEFAULT 1.0,
+  STATUS          VARCHAR      DEFAULT 'ACTIVE',
+  EFFECTIVE_FROM  DATE,
+  CONSTRAINT PK_METER_CHANNEL PRIMARY KEY (CHANNEL_ID)
+);
+
+-- Population rule (reflects what our meter firmware actually emits):
+--   All meters: KWH_DEL, KW_DEM, VOLT_AVG
+--   DER meters (HAS_DER = TRUE): + KWH_REC
+INSERT INTO METER_CHANNEL
+SELECT
+  m.METER_ID || '-' || cc.CHANNEL_CODE                 AS CHANNEL_ID,
+  m.METER_ID,
+  cc.CHANNEL_CODE,
+  cc.CHANNEL_NUMBER,
+  cc.UOM,
+  cc.DIRECTION,
+  cc.AGGREGATION,
+  15,
+  1.0,
+  'ACTIVE',
+  m.INSTALL_DATE
+FROM AMI_CURATED.METER m
+CROSS JOIN AMI_CURATED.CHANNEL_CATALOG cc
+WHERE cc.IS_ACTIVE
+  AND (
+       cc.CHANNEL_CODE IN ('KWH_DEL','KW_DEM','VOLT_AVG')
+    OR (cc.CHANNEL_CODE = 'KWH_REC' AND m.HAS_DER)
+  );
+
+-- ---- Physical long-form fact -----------------------------------------
+CREATE OR REPLACE TABLE AMI_CURATED.INTERVAL_READ_CHANNEL (
+  METER_ID          VARCHAR       NOT NULL,
+  CHANNEL_ID        VARCHAR       NOT NULL,
+  CHANNEL_CODE      VARCHAR       NOT NULL,
+  READ_TS           TIMESTAMP_NTZ NOT NULL,
+  VALUE             NUMBER(14,4),        -- numeric value in channel UOM
+  UOM               VARCHAR,
+  QUALITY_FLAG      VARCHAR,
+  VEE_STATUS        VARCHAR,
+  ESTIMATION_METHOD VARCHAR,
+  EVENT_ID          VARCHAR,
+  UTILITY_TERRITORY VARCHAR,
+  SOURCE_FILE       VARCHAR,
+  INGESTED_AT       TIMESTAMP_NTZ,
+  INGESTION_LAG_SEC NUMBER,
+  PRIMARY KEY (METER_ID, CHANNEL_ID, READ_TS)
+)
+CLUSTER BY (READ_TS, METER_ID, CHANNEL_CODE);
+
+-- ---- Backfill procedure: unpivot wide fact month-by-month ------------
+CREATE OR REPLACE PROCEDURE SP_BACKFILL_CHANNEL_MONTH(MONTH_OFFSET NUMBER)
+RETURNS STRING
+LANGUAGE SQL
+AS
+$$
+DECLARE
+  start_dt DATE;
+  end_dt   DATE;
+  row_ct   NUMBER;
+BEGIN
+  start_dt := DATEADD(month, :MONTH_OFFSET, DATE_TRUNC('month', DATEADD(year,-1,CURRENT_DATE())));
+  end_dt   := DATEADD(month, 1, :start_dt);
+
+  INSERT INTO AMI_CURATED.INTERVAL_READ_CHANNEL
+  SELECT METER_ID, METER_ID||'-'||CHANNEL_CODE AS CHANNEL_ID,
+         CHANNEL_CODE, READ_TS, VALUE, UOM,
+         QUALITY_FLAG, VEE_STATUS, ESTIMATION_METHOD, EVENT_ID,
+         UTILITY_TERRITORY, SOURCE_FILE, INGESTED_AT, INGESTION_LAG_SEC
+  FROM (
+    SELECT i.METER_ID, 'KWH_DEL' AS CHANNEL_CODE, i.READ_TS,
+           i.KWH_DELIVERED::NUMBER(14,4) AS VALUE, 'KWH' AS UOM,
+           i.QUALITY_FLAG, i.VEE_STATUS, i.ESTIMATION_METHOD, i.EVENT_ID,
+           i.UTILITY_TERRITORY, i.SOURCE_FILE, i.INGESTED_AT, i.INGESTION_LAG_SEC
+    FROM AMI_CURATED.INTERVAL_READ_15MIN i
+    WHERE i.READ_TS >= :start_dt AND i.READ_TS < :end_dt
+    UNION ALL
+    SELECT i.METER_ID, 'KW_DEM', i.READ_TS,
+           i.DEMAND_KW::NUMBER(14,4), 'KW',
+           i.QUALITY_FLAG, i.VEE_STATUS, i.ESTIMATION_METHOD, i.EVENT_ID,
+           i.UTILITY_TERRITORY, i.SOURCE_FILE, i.INGESTED_AT, i.INGESTION_LAG_SEC
+    FROM AMI_CURATED.INTERVAL_READ_15MIN i
+    WHERE i.READ_TS >= :start_dt AND i.READ_TS < :end_dt
+    UNION ALL
+    SELECT i.METER_ID, 'VOLT_AVG', i.READ_TS,
+           i.VOLTAGE_V::NUMBER(14,4), 'V',
+           i.QUALITY_FLAG, i.VEE_STATUS, i.ESTIMATION_METHOD, i.EVENT_ID,
+           i.UTILITY_TERRITORY, i.SOURCE_FILE, i.INGESTED_AT, i.INGESTION_LAG_SEC
+    FROM AMI_CURATED.INTERVAL_READ_15MIN i
+    WHERE i.READ_TS >= :start_dt AND i.READ_TS < :end_dt
+    UNION ALL
+    -- KWH_REC only for DER meters (others don't have that channel)
+    SELECT i.METER_ID, 'KWH_REC', i.READ_TS,
+           i.KWH_RECEIVED::NUMBER(14,4), 'KWH',
+           i.QUALITY_FLAG, i.VEE_STATUS, i.ESTIMATION_METHOD, i.EVENT_ID,
+           i.UTILITY_TERRITORY, i.SOURCE_FILE, i.INGESTED_AT, i.INGESTION_LAG_SEC
+    FROM AMI_CURATED.INTERVAL_READ_15MIN i
+    JOIN AMI_CURATED.METER m USING (METER_ID)
+    WHERE i.READ_TS >= :start_dt AND i.READ_TS < :end_dt
+      AND m.HAS_DER
+  );
+
+  row_ct := SQLROWCOUNT;
+  RETURN 'Unpivoted ' || :row_ct || ' channel rows for month starting ' || :start_dt::STRING;
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE SP_BACKFILL_CHANNEL_ALL(FROM_OFFSET NUMBER, TO_OFFSET NUMBER)
+RETURNS STRING
+LANGUAGE SQL
+AS
+$$
+DECLARE
+  i NUMBER;
+  total NUMBER;
+BEGIN
+  FOR i IN :FROM_OFFSET TO :TO_OFFSET DO
+    CALL SP_BACKFILL_CHANNEL_MONTH(:i);
+  END FOR;
+  SELECT COUNT(*) INTO :total FROM AMI_CURATED.INTERVAL_READ_CHANNEL;
+  RETURN 'Total channel fact rows: ' || :total;
+END;
+$$;
+
+-- ---- Backward-compat wide view ---------------------------------------
+-- Dashboard and existing DTs keep working by reading this view.
+CREATE OR REPLACE VIEW AMI_CURATED.V_INTERVAL_READ_15MIN_WIDE AS
+SELECT
+  METER_ID,
+  READ_TS,
+  MAX(IFF(CHANNEL_CODE='KWH_DEL',  VALUE, NULL))::NUMBER(14,4) AS KWH_DELIVERED,
+  MAX(IFF(CHANNEL_CODE='KWH_REC',  VALUE, NULL))::NUMBER(14,4) AS KWH_RECEIVED,
+  MAX(IFF(CHANNEL_CODE='KW_DEM',   VALUE, NULL))::NUMBER(10,4) AS DEMAND_KW,
+  MAX(IFF(CHANNEL_CODE='VOLT_AVG', VALUE, NULL))::NUMBER(6,2)  AS VOLTAGE_V,
+  ANY_VALUE(QUALITY_FLAG)      AS QUALITY_FLAG,
+  ANY_VALUE(VEE_STATUS)        AS VEE_STATUS,
+  ANY_VALUE(ESTIMATION_METHOD) AS ESTIMATION_METHOD,
+  ANY_VALUE(EVENT_ID)          AS EVENT_ID,
+  ANY_VALUE(UTILITY_TERRITORY) AS UTILITY_TERRITORY,
+  ANY_VALUE(SOURCE_FILE)       AS SOURCE_FILE,
+  ANY_VALUE(INGESTED_AT)       AS INGESTED_AT,
+  ANY_VALUE(INGESTION_LAG_SEC) AS INGESTION_LAG_SEC
+FROM AMI_CURATED.INTERVAL_READ_CHANNEL
+GROUP BY METER_ID, READ_TS;
+
+-- Backfill the channel model from the wide fact, one month per statement
+USE SCHEMA SF_SOLUTIONS.AMI_CURATED;
+CALL SP_BACKFILL_CHANNEL_MONTH(0);
+CALL SP_BACKFILL_CHANNEL_MONTH(1);
+CALL SP_BACKFILL_CHANNEL_MONTH(2);
+CALL SP_BACKFILL_CHANNEL_MONTH(3);
+CALL SP_BACKFILL_CHANNEL_MONTH(4);
+CALL SP_BACKFILL_CHANNEL_MONTH(5);
+CALL SP_BACKFILL_CHANNEL_MONTH(6);
+CALL SP_BACKFILL_CHANNEL_MONTH(7);
+CALL SP_BACKFILL_CHANNEL_MONTH(8);
+CALL SP_BACKFILL_CHANNEL_MONTH(9);
+CALL SP_BACKFILL_CHANNEL_MONTH(10);
+CALL SP_BACKFILL_CHANNEL_MONTH(11);
+CALL SP_BACKFILL_CHANNEL_MONTH(12);
+
+SELECT 'AMI data load complete. Next: run scripts/pipeline.sql' AS STATUS;

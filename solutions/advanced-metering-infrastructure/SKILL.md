@@ -57,13 +57,18 @@ Parse the action from `$ARGUMENTS`:
      - Semantic view, Cortex Search service and Cortex Agent (AMI_INTELLIGENCE_AGENT)
      - Roles AMI_OWNER, AMI_ENG, AMI_ANALYST, AMI_OPS, AMI_SHARE
      - Warehouse: SF_SOLUTIONS_WH (shared, LARGE)
+
+   Disclaimer: This application is not part of the Snowflake Service and is
+   governed by the terms in LICENSE, unless expressly agreed to in writing. You use
+   this application at your own risk, and Snowflake has no obligation to support
+   your use of this application.
    ```
 
 4. Ask the user for the scale using `ask_user_question`:
    - **100,000 meters (default)** — about 3.5 billion interval rows, roughly 300 GB of storage
    - **10,000 meters** — about 350 million interval rows
    - **1,000 meters** — about 35 million interval rows; recommended for trial accounts
-   Then wait for confirmation of the plan.
+   Then wait for confirmation of the plan (the user's confirmation also acknowledges the disclaimer).
 
 5. **Delegate SQL execution to a Task subagent** (do NOT read SQL files into main context):
    ```

@@ -4,6 +4,11 @@
 -- Schemas:  AMI_RAW, AMI_CURATED, AMI_MART, AMI_OBSERVABILITY, AMI_ML, AMI_SHARED
 -- Generates synthetic dimensions and 12 months of 15-minute history (one statement per month).
 -- Run after setup.sql. Approx. 30-45 min on a LARGE warehouse at 100K meters.
+--
+-- Disclaimer: This application is not part of the Snowflake Service and is governed
+-- by the terms in LICENSE, unless expressly agreed to in writing. You use this
+-- application at your own risk, and Snowflake has no obligation to support your use
+-- of this application.
 -- =============================================================================
 
 USE ROLE ACCOUNTADMIN;

@@ -3,6 +3,11 @@
 -- Drops the CQC schemas and the optional app add-on objects.
 -- Never drops the shared SF_SOLUTIONS database or SF_SOLUTIONS_WH warehouse.
 -- Idempotent: safe to run more than once.
+--
+-- Disclaimer: This application is not part of the Snowflake Service and is governed
+-- by the terms in LICENSE, unless expressly agreed to in writing. You use this
+-- application at your own risk, and Snowflake has no obligation to support your use
+-- of this application.
 -- =============================================================================
 
 USE ROLE ACCOUNTADMIN;

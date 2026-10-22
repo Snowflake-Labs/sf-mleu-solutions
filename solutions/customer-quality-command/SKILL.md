@@ -60,8 +60,13 @@ Parse the action from `$ARGUMENTS`:
      - Cortex Agent CUSTOMER_QUALITY_AGENT (Ask CQC)
      - Warehouse: SF_SOLUTIONS_WH (shared, LARGE)
    Expected time on a LARGE warehouse: about 15 minutes.
+
+   Disclaimer: This application is not part of the Snowflake Service and is
+   governed by the terms in LICENSE, unless expressly agreed to in writing. You use
+   this application at your own risk, and Snowflake has no obligation to support
+   your use of this application.
    ```
-   Wait for confirmation.
+   Wait for confirmation (the user's confirmation also acknowledges the disclaimer).
 
 4. **Delegate SQL execution to a Task subagent** (do NOT read SQL files into main context):
    ```

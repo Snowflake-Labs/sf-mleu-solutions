@@ -2,6 +2,11 @@
 -- Solution: Customer Quality Command (CQC) - optional app add-on (SPCS)
 -- Step 2 of 2: run after app/setup_app.sql and after pushing the image to
 -- SF_SOLUTIONS.CQC_ML.CQC_IMAGES (see app/README.md).
+--
+-- Disclaimer: This application is not part of the Snowflake Service and is governed
+-- by the terms in LICENSE, unless expressly agreed to in writing. You use this
+-- application at your own risk, and Snowflake has no obligation to support your use
+-- of this application.
 -- =============================================================================
 
 USE ROLE ACCOUNTADMIN;

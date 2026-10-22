@@ -3,6 +3,11 @@
 -- Not available on trial accounts (compute pools).
 -- Step 1 of 2: run after scripts/pipeline.sql. Then build and push the image
 -- (see app/README.md) and run app/create_service.sql.
+--
+-- Disclaimer: This application is not part of the Snowflake Service and is governed
+-- by the terms in LICENSE, unless expressly agreed to in writing. You use this
+-- application at your own risk, and Snowflake has no obligation to support your use
+-- of this application.
 -- =============================================================================
 
 USE ROLE ACCOUNTADMIN;

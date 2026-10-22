@@ -1,0 +1,46 @@
+{
+  "name": "advanced-metering-infrastructure",
+  "display_name": "Advanced Metering Infrastructure (AMI 2.0)",
+  "version": "1.0.0",
+  "type": "script",
+  "industry": "Energy & Utilities",
+  "description": "Snowflake-native AMI accelerator: 15-minute meter reads from streaming ingest to billing-ready, TOU-priced, quality-checked data with Cortex ML anomaly detection and a Cortex Agent.",
+  "author": "Rishabh Raman",
+  "edition": "Enterprise",
+  "trial_compatible": true,
+  "database": "SF_SOLUTIONS",
+  "schemas": ["AMI_RAW", "AMI_CURATED", "AMI_MART", "AMI_OBSERVABILITY", "AMI_ML", "AMI_SHARED"],
+  "role": "ACCOUNTADMIN",
+  "requires_warehouse": true,
+  "install_scripts": [
+    "scripts/setup.sql",
+    "scripts/data.sql",
+    "scripts/pipeline.sql"
+  ],
+  "teardown_scripts": [
+    "scripts/teardown.sql"
+  ],
+  "optional_addons": [
+    {
+      "name": "SPCS dashboard",
+      "path": "app",
+      "install_scripts": ["app/setup_app.sql", "app/create_service.sql"],
+      "trial_compatible": false
+    }
+  ],
+  "features": [
+    "Dynamic Tables",
+    "Data Metric Functions",
+    "Alerts",
+    "Cortex ML Anomaly Detection",
+    "Cortex Analyst",
+    "Semantic View",
+    "Cortex Search",
+    "Cortex Agent",
+    "Snowflake CoWork",
+    "Row Access Policy",
+    "Masking Policy",
+    "Secure Views",
+    "SPCS (optional add-on)"
+  ]
+}

@@ -1,0 +1,43 @@
+-- =============================================================================
+-- Solution: Advanced Metering Infrastructure (AMI 2.0) - teardown
+-- Drops the AMI schemas, roles and the optional dashboard add-on objects.
+-- Never drops the shared SF_SOLUTIONS database or SF_SOLUTIONS_WH warehouse.
+-- Idempotent: safe to run more than once.
+--
+-- Disclaimer: This application is not part of the Snowflake Service and is governed
+-- by the terms in LICENSE, unless expressly agreed to in writing. You use this
+-- application at your own risk, and Snowflake has no obligation to support your use
+-- of this application.
+-- =============================================================================
+
+USE ROLE ACCOUNTADMIN;
+CREATE DATABASE IF NOT EXISTS SF_SOLUTIONS;
+USE DATABASE SF_SOLUTIONS;
+CREATE WAREHOUSE IF NOT EXISTS SF_SOLUTIONS_WH
+    WITH WAREHOUSE_SIZE = 'LARGE'
+    AUTO_SUSPEND = 300
+    AUTO_RESUME = TRUE;
+USE WAREHOUSE SF_SOLUTIONS_WH;
+
+-- Optional dashboard add-on (app/setup_app.sql)
+CREATE SCHEMA IF NOT EXISTS SF_SOLUTIONS.AMI_MART;
+DROP SERVICE IF EXISTS SF_SOLUTIONS.AMI_MART.AMI_DASHBOARD_SVC;
+DROP COMPUTE POOL IF EXISTS SF_SOLUTIONS_AMI_POOL;
+DROP INTEGRATION IF EXISTS SF_SOLUTIONS_AMI_TILES_EAI;
+
+-- Solution schemas
+DROP SCHEMA IF EXISTS SF_SOLUTIONS.AMI_RAW;
+DROP SCHEMA IF EXISTS SF_SOLUTIONS.AMI_CURATED;
+DROP SCHEMA IF EXISTS SF_SOLUTIONS.AMI_MART;
+DROP SCHEMA IF EXISTS SF_SOLUTIONS.AMI_OBSERVABILITY;
+DROP SCHEMA IF EXISTS SF_SOLUTIONS.AMI_ML;
+DROP SCHEMA IF EXISTS SF_SOLUTIONS.AMI_SHARED;
+
+-- Solution roles
+DROP ROLE IF EXISTS AMI_SHARE;
+DROP ROLE IF EXISTS AMI_OPS;
+DROP ROLE IF EXISTS AMI_ANALYST;
+DROP ROLE IF EXISTS AMI_ENG;
+DROP ROLE IF EXISTS AMI_OWNER;
+
+SELECT 'AMI teardown complete' AS STATUS;

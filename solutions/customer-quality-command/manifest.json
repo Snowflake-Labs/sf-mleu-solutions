@@ -1,0 +1,53 @@
+{
+  "name": "customer-quality-command",
+  "display_name": "Customer Quality Command (CQC)",
+  "version": "1.0.0",
+  "type": "script",
+  "industry": "Manufacturing",
+  "description": "Customer-quality command-and-response accelerator for an equipment manufacturer and its dealer network: early detection, safety-gated prioritization, lot-level root cause, exposure simulation, closed-loop actions and a Cortex Agent.",
+  "author": "Rishabh Raman",
+  "edition": "Enterprise",
+  "trial_compatible": true,
+  "database": "SF_SOLUTIONS",
+  "schemas": [
+    "CQC_RAW",
+    "CQC_STAGING",
+    "CQC_ATOMIC",
+    "CQC_FEATURE_STORE",
+    "CQC_ML",
+    "CQC_ANALYTICS",
+    "CQC_INSIGHTS",
+    "CQC_ACTION",
+    "CQC_DOCS"
+  ],
+  "role": "ACCOUNTADMIN",
+  "requires_warehouse": true,
+  "install_scripts": [
+    "scripts/setup.sql",
+    "scripts/data.sql",
+    "scripts/pipeline.sql"
+  ],
+  "teardown_scripts": [
+    "scripts/teardown.sql"
+  ],
+  "optional_addons": [
+    {
+      "name": "SPCS app (React + FastAPI)",
+      "path": "app",
+      "install_scripts": ["app/setup_app.sql", "app/create_service.sql"],
+      "trial_compatible": false
+    }
+  ],
+  "features": [
+    "Snowpark Python Stored Procedures",
+    "Snowflake ML Model Registry",
+    "Cortex AI Functions (AI_COMPLETE, AI_EMBED)",
+    "Cortex Analyst",
+    "Semantic View",
+    "Cortex Search",
+    "Cortex Agent",
+    "Snowflake CoWork",
+    "Tasks",
+    "SPCS (optional add-on)"
+  ]
+}

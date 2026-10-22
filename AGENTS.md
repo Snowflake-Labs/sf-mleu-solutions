@@ -312,6 +312,7 @@ Reference when creating new solutions to avoid schema name conflicts and to foll
 | predictive-maintenance | Manufacturing | SF_SOLUTIONS | MPM_BRONZE, MPM_SILVER, MPM_GOLD | CoWork, Cortex Analyst, Semantic View, Streamlit, SPCS |
 | supply-chain-intelligence | Manufacturing | SF_SOLUTIONS | SUPPLY_CHAIN_ENTITIES | Intelligence Agent, Cortex Analyst, Cortex Search, Streamlit |
 | gnn-supply-chain-risk | Manufacturing | SF_SOLUTIONS | GNN_SUPPLY_CHAIN_RISK | GNN, NetworkX, Risk Analysis, Streamlit |
+| customer-quality-command | Manufacturing | SF_SOLUTIONS | CQC_RAW, CQC_STAGING, CQC_ATOMIC, CQC_FEATURE_STORE, CQC_ML, CQC_ANALYTICS, CQC_INSIGHTS, CQC_ACTION, CQC_DOCS | Snowpark Python, ML Model Registry, Cortex Agent, Cortex Analyst, Semantic View, Cortex Search, SPCS (optional) |
 
 Notes:
 - All solutions use `SF_SOLUTIONS` database.

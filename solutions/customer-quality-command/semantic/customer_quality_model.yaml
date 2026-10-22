@@ -1,0 +1,275 @@
+name: customer_quality_model
+description: >
+  CQC — Acme Industrial Construction Equipment Division customer-quality semantic model.
+  Conversational access to governable quality ISSUES and their business impact,
+  root cause, exposure, persona metrics, recommended actions, impacted fleet, and
+  alerts. Primary grain is the ISSUE (from CQC_INSIGHTS.INSIGHT_ISSUE); thin drill to
+  machine and quality-event detail. Safety > Productivity > Experience hierarchy.
+
+tables:
+  # ------------------------------------------------------------------ hero
+  - name: insight_issue
+    description: One row per governable quality issue (the unit personas act on).
+    base_table: {database: SF_SOLUTIONS, schema: CQC_INSIGHTS, table: INSIGHT_ISSUE}
+    primary_key: {columns: [ISSUE_ID]}
+    dimensions:
+      - {name: issue_id, expr: ISSUE_ID, data_type: TEXT, description: Unique issue id}
+      - {name: title, expr: TITLE, data_type: TEXT, description: Human-readable issue title}
+      - {name: summary_text, expr: SUMMARY_TEXT, data_type: TEXT, description: AI brief of the issue}
+      - {name: quality_dimension, expr: QUALITY_DIMENSION, data_type: TEXT, description: "S/P/E pillar: SAFETY, PRODUCTIVITY, or EXPERIENCE", synonyms: [pillar, dimension, category]}
+      - {name: status, expr: STATUS, data_type: TEXT, description: Workflow status, synonyms: [state]}
+      - {name: lifecycle_stage, expr: LIFECYCLE_STAGE, data_type: TEXT, description: EMERGING / CONFIRMED / CONTAINED / RESOLVED}
+      - {name: product_family, expr: PRODUCT_FAMILY, data_type: TEXT, description: CED product family, synonyms: [family, product line]}
+      - {name: model, expr: MODEL, data_type: TEXT, description: Machine model e.g. LX-950, synonyms: [machine model]}
+      - {name: system_group, expr: SYSTEM_GROUP, data_type: TEXT, description: Machine system e.g. ENGINE_FUEL, synonyms: [system, subsystem]}
+      - {name: failure_mode, expr: FAILURE_MODE, data_type: TEXT, description: Canonical failure mode}
+      - {name: root_cause_type, expr: ROOT_CAUSE_TYPE, data_type: TEXT, description: "LOT / DESIGN / ISOLATED / PLANT / SUPPLIER", synonyms: [root cause]}
+      - {name: root_cause_summary, expr: ROOT_CAUSE_SUMMARY, data_type: TEXT, description: Plain-language root cause statement}
+      - {name: lot_key, expr: LOT_KEY, data_type: TEXT, description: Suspect supplier lot number, synonyms: [lot, supplier lot]}
+      - {name: geography_top, expr: GEOGRAPHY_TOP, data_type: TEXT, description: Most-impacted US subregion, synonyms: [region, area]}
+      - {name: data_confidence_band, expr: DATA_CONFIDENCE_BAND, data_type: TEXT, description: HIGH / MED / LOW data readiness}
+      - {name: rationale_text, expr: RATIONALE_TEXT, data_type: TEXT, description: Grounded explanation of why this issue matters}
+    time_dimensions:
+      - {name: first_detected, expr: FIRST_DETECTED_TS, data_type: DATE, description: When the issue was first detected}
+    facts:
+      - {name: priority_rank, expr: PRIORITY_RANK, data_type: NUMBER, description: Safety-gated lexicographic priority (1 = highest)}
+      - {name: priority_score, expr: PRIORITY_SCORE, data_type: FLOAT, description: Composite priority magnitude}
+      - {name: exposed_fleet_count, expr: EXPOSED_FLEET_COUNT, data_type: NUMBER, description: Machines exposed to this issue, synonyms: [exposed units, affected machines]}
+      - {name: impacted_customer_count, expr: IMPACTED_CUSTOMER_COUNT, data_type: NUMBER, description: Distinct impacted customers}
+      - {name: impacted_dealer_count, expr: IMPACTED_DEALER_COUNT, data_type: NUMBER, description: Distinct impacted dealers}
+      - {name: impacted_facility_count, expr: IMPACTED_FACILITY_COUNT, data_type: NUMBER, description: Build facilities involved}
+      - {name: pro_sif_risk, expr: PRO_SIF_RISK, data_type: NUMBER, description: Serious Injury Potential (SIP) risk score (safety), synonyms: [SIP, SIP risk, serious injury potential, safety risk]}
+      - {name: vtc_usd, expr: VTC_USD, data_type: FLOAT, description: Value-to-cost productivity impact in USD}
+      - {name: vtc_p90, expr: VTC_P90, data_type: FLOAT, description: VTC P90}
+      - {name: cei_score, expr: CEI_SCORE, data_type: FLOAT, description: Customer experience index impact}
+      - {name: nps_delta, expr: NPS_DELTA, data_type: NUMBER, description: NPS delta vs fleet}
+      - {name: warranty_exposure_p50, expr: WARRANTY_EXPOSURE_P50, data_type: FLOAT, description: Likely warranty exposure USD (central estimate; Monte-Carlo median), synonyms: [likely exposure, likely cost, typical exposure, expected exposure]}
+      - {name: warranty_exposure_p90, expr: WARRANTY_EXPOSURE_P90, data_type: FLOAT, description: Plan-for warranty exposure USD (the figure to budget; 9-in-10 chance it is not exceeded), synonyms: [exposure, plan-for exposure, plan for, budget exposure, cost to plan for]}
+      - {name: warranty_exposure_cvar, expr: WARRANTY_EXPOSURE_CVAR, data_type: FLOAT, description: Bad-case warranty exposure USD (average of the worst 1-in-20 outcomes), synonyms: [bad-case exposure, bad case, worst case exposure, tail risk, downside exposure]}
+      - {name: mtbf, expr: MTBF, data_type: FLOAT, description: Mean time between failures (operating hours)}
+      - {name: mttr, expr: MTTR, data_type: NUMBER, description: Mean time to repair (hours)}
+      - {name: data_confidence, expr: DATA_CONFIDENCE, data_type: FLOAT, description: Per-insight data-readiness confidence 0-1}
+      - {name: recommended_action_count, expr: RECOMMENDED_ACTION_COUNT, data_type: NUMBER, description: Number of recommended actions}
+
+  # ------------------------------------------------------------- persona view
+  - name: insight_persona_view
+    description: One issue rendered as five persona decision surfaces (dealer, product, manufacturing, supply chain, executive).
+    base_table: {database: SF_SOLUTIONS, schema: CQC_INSIGHTS, table: INSIGHT_PERSONA_VIEW}
+    dimensions:
+      - {name: issue_id, expr: ISSUE_ID, data_type: TEXT}
+      - {name: persona, expr: PERSONA, data_type: TEXT, description: "DEALER / PRODUCT / MANUFACTURING / SUPPLY_CHAIN / EXECUTIVE", synonyms: [role, lens]}
+      - {name: view_level, expr: VIEW_LEVEL, data_type: TEXT}
+      - {name: diagnose_question, expr: DIAGNOSE_QUESTION, data_type: TEXT}
+      - {name: diagnose_answer_text, expr: DIAGNOSE_ANSWER_TEXT, data_type: TEXT}
+      - {name: primary_metric_name, expr: PRIMARY_METRIC_NAME, data_type: TEXT, description: "Persona metric: PDI/MTBF/rework/SQPI/exposure"}
+      - {name: action_summary, expr: ACTION_SUMMARY, data_type: TEXT}
+    facts:
+      - {name: primary_metric_value, expr: PRIMARY_METRIC_VALUE, data_type: FLOAT, description: Value of the persona primary metric}
+      - {name: primary_metric_target, expr: PRIMARY_METRIC_TARGET, data_type: NUMBER, description: Target for the persona metric}
+
+  # --------------------------------------------------------- risk assessment
+  - name: insight_risk_assessment
+    description: Per-issue multi-pillar risk ratings (safety, productivity, downtime, exposure, customer).
+    base_table: {database: SF_SOLUTIONS, schema: CQC_INSIGHTS, table: INSIGHT_RISK_ASSESSMENT}
+    dimensions:
+      - {name: issue_id, expr: ISSUE_ID, data_type: TEXT}
+      - {name: safety_rating, expr: SAFETY_RATING, data_type: TEXT}
+      - {name: productivity_rating, expr: PRODUCTIVITY_RATING, data_type: TEXT}
+      - {name: downtime_rating, expr: DOWNTIME_RATING, data_type: TEXT}
+      - {name: warranty_exposure_rating, expr: WARRANTY_EXPOSURE_RATING, data_type: TEXT}
+      - {name: customer_impact_rating, expr: CUSTOMER_IMPACT_RATING, data_type: TEXT}
+      - {name: overall_risk, expr: OVERALL_RISK, data_type: TEXT, synonyms: [risk level]}
+      - {name: headline_text, expr: HEADLINE_TEXT, data_type: TEXT}
+
+  # ---------------------------------------------------------------- actions
+  - name: insight_action
+    description: Recommended, time-windowed next-best actions per issue (closed-loop).
+    base_table: {database: SF_SOLUTIONS, schema: CQC_INSIGHTS, table: INSIGHT_ACTION}
+    primary_key: {columns: [ACTION_ID]}
+    dimensions:
+      - {name: action_id, expr: ACTION_ID, data_type: TEXT}
+      - {name: issue_id, expr: ISSUE_ID, data_type: TEXT}
+      - {name: owner_persona, expr: OWNER_PERSONA, data_type: TEXT, synonyms: [owner, responsible]}
+      - {name: time_window, expr: TIME_WINDOW, data_type: TEXT, description: "0_24h / 24_48h / 48_72h / ONGOING"}
+      - {name: action_text, expr: ACTION_TEXT, data_type: TEXT, synonyms: [action, recommendation]}
+      - {name: action_rationale, expr: ACTION_RATIONALE, data_type: TEXT}
+      - {name: source, expr: SOURCE, data_type: TEXT}
+      - {name: status, expr: STATUS, data_type: TEXT}
+    facts:
+      - {name: expected_risk_reduction, expr: EXPECTED_RISK_REDUCTION, data_type: NUMBER, description: Expected fractional risk reduction}
+
+  # ------------------------------------------------------- impacted rollups
+  - name: insight_impacted_customers
+    description: Customers impacted per issue.
+    base_table: {database: SF_SOLUTIONS, schema: CQC_INSIGHTS, table: INSIGHT_IMPACTED_CUSTOMERS}
+    dimensions:
+      - {name: issue_id, expr: ISSUE_ID, data_type: TEXT}
+      - {name: entity_name, expr: ENTITY_NAME, data_type: TEXT, synonyms: [customer, account]}
+      - {name: geo, expr: GEO, data_type: TEXT}
+      - {name: end_market_cd, expr: END_MARKET_CD, data_type: TEXT, synonyms: [segment, end market]}
+    facts:
+      - {name: units_impacted, expr: EXPOSURE_COUNT, data_type: NUMBER, description: Units impacted for this customer}
+
+  - name: insight_impacted_areas
+    description: Geographic areas (US subregions) impacted per issue.
+    base_table: {database: SF_SOLUTIONS, schema: CQC_INSIGHTS, table: INSIGHT_IMPACTED_AREAS}
+    dimensions:
+      - {name: issue_id, expr: ISSUE_ID, data_type: TEXT}
+      - {name: area, expr: ENTITY_NAME, data_type: TEXT, synonyms: [region, subregion]}
+    facts:
+      - {name: units_impacted, expr: EXPOSURE_COUNT, data_type: NUMBER}
+
+  # ------------------------------------------------- customer archetype (customer-back)
+  - name: insight_issue_archetype
+    description: Per-issue exposure mix across the four customer archetypes (Enterprise/National/Local/Independent) with relative pain and the channel through which each tier's pain surfaces.
+    base_table: {database: SF_SOLUTIONS, schema: CQC_INSIGHTS, table: INSIGHT_ISSUE_ARCHETYPE}
+    dimensions:
+      - {name: issue_id, expr: ISSUE_ID, data_type: TEXT}
+      - {name: archetype, expr: ARCHETYPE, data_type: TEXT, synonyms: [customer tier, account tier, customer type, customer archetype]}
+      - {name: basis, expr: BASIS, data_type: TEXT, description: EXPOSED (lot) or IMPACTED footprint}
+      - {name: quality_definition, expr: QUALITY_DEFINITION, data_type: TEXT, description: How this archetype defines quality}
+      - {name: pain_channel, expr: PAIN_CHANNEL, data_type: TEXT, synonyms: [how pain surfaces, channel]}
+      - {name: response_mode, expr: RESPONSE_MODE, data_type: TEXT, synonyms: [proactive, reactive]}
+    facts:
+      - {name: archetype_rank, expr: ARCHETYPE_RANK, data_type: NUMBER}
+      - {name: units, expr: UNITS, data_type: NUMBER, description: Exposed/impacted units for this archetype}
+      - {name: customers, expr: CUSTOMERS, data_type: NUMBER}
+      - {name: per_unit_usd, expr: PER_UNIT_USD, data_type: NUMBER}
+      - {name: relative_pain_per_unit, expr: RELATIVE_PAIN_PER_UNIT, data_type: NUMBER, description: Per-unit dollar impact as a share of the archetype's operation}
+      - {name: pain_share_pct, expr: PAIN_SHARE_PCT, data_type: NUMBER, synonyms: [felt pain share, share of pain]}
+
+  - name: insight_issue_customer_back
+    description: Customer-back priority rollup per issue — standard rank vs customer-back rank (pain intensity; safety stays absolute) plus the dominant-pain archetype and channel.
+    base_table: {database: SF_SOLUTIONS, schema: CQC_INSIGHTS, table: INSIGHT_ISSUE_CUSTOMER_BACK}
+    dimensions:
+      - {name: issue_id, expr: ISSUE_ID, data_type: TEXT}
+      - {name: quality_dimension, expr: QUALITY_DIMENSION, data_type: TEXT}
+      - {name: dominant_archetype, expr: DOMINANT_ARCHETYPE, data_type: TEXT, synonyms: [most affected tier, most vulnerable archetype]}
+      - {name: dominant_channel, expr: DOMINANT_CHANNEL, data_type: TEXT}
+    facts:
+      - {name: orig_priority_rank, expr: ORIG_PRIORITY_RANK, data_type: NUMBER, synonyms: [standard rank]}
+      - {name: customer_back_rank, expr: CUSTOMER_BACK_RANK, data_type: NUMBER}
+      - {name: rank_in_tier, expr: RANK_IN_TIER, data_type: NUMBER}
+      - {name: rank_delta, expr: RANK_DELTA, data_type: NUMBER}
+      - {name: pain_intensity, expr: PAIN_INTENSITY, data_type: NUMBER}
+      - {name: dominant_pain_share_pct, expr: DOMINANT_PAIN_SHARE_PCT, data_type: NUMBER}
+      - {name: dominant_units, expr: DOMINANT_UNITS, data_type: NUMBER}
+
+  # ----------------------------------------------------------- metric trend
+  - name: insight_metric_trend
+    description: Business KPI time series (quality events by pillar and family over time).
+    base_table: {database: SF_SOLUTIONS, schema: CQC_INSIGHTS, table: INSIGHT_METRIC_TREND}
+    dimensions:
+      - {name: metric_name, expr: METRIC_NAME, data_type: TEXT, synonyms: [kpi, metric]}
+      - {name: grain, expr: GRAIN, data_type: TEXT}
+    time_dimensions:
+      - {name: period, expr: PERIOD, data_type: TIMESTAMP_NTZ}
+    facts:
+      - {name: value, expr: VALUE, data_type: NUMBER}
+
+  # --------------------------------------------------- thin ATOMIC drill: machine
+  - name: machine
+    description: Machine master (thin drill for serial-level questions).
+    base_table: {database: SF_SOLUTIONS, schema: CQC_ATOMIC, table: DIM_MACHINE}
+    primary_key: {columns: [MACHINE_KEY]}
+    dimensions:
+      - {name: machine_key, expr: MACHINE_KEY, data_type: NUMBER}
+      - {name: machine_sn, expr: MACHINE_SN, data_type: TEXT, synonyms: [serial, serial number, machine]}
+      - {name: model, expr: MODEL, data_type: TEXT}
+      - {name: product_family, expr: PRODUCT_FAMILY, data_type: TEXT}
+      - {name: global_region, expr: GLOBAL_REGION, data_type: TEXT}
+      - {name: us_subregion, expr: US_SUBREGION, data_type: TEXT}
+      - {name: build_facility_cd, expr: BUILD_FACILITY_CD, data_type: TEXT, synonyms: [plant, factory]}
+    time_dimensions:
+      - {name: delivery_date, expr: DELIVERY_DT, data_type: DATE}
+
+  # --------------------------------------------------- thin ATOMIC drill: event
+  - name: quality_event
+    description: Individual quality events (thin drill for "show events on serial X").
+    base_table: {database: SF_SOLUTIONS, schema: CQC_ATOMIC, table: FACT_QUALITY_EVENT}
+    primary_key: {columns: [EVENT_KEY]}
+    dimensions:
+      - {name: event_key, expr: EVENT_KEY, data_type: NUMBER}
+      - {name: machine_key, expr: MACHINE_KEY, data_type: NUMBER}
+      - {name: model, expr: MODEL, data_type: TEXT}
+      - {name: source_system, expr: SOURCE_SYSTEM, data_type: TEXT, synonyms: [source, channel]}
+      - {name: system_group_cd, expr: SYSTEM_GROUP_CD, data_type: TEXT}
+      - {name: failure_mode_cd, expr: FAILURE_MODE_CD, data_type: TEXT}
+      - {name: quality_dimension_cd, expr: QUALITY_DIMENSION_CD, data_type: TEXT}
+      - {name: severity_cd, expr: SEVERITY_CD, data_type: TEXT}
+    time_dimensions:
+      - {name: event_date, expr: EVENT_DATE, data_type: DATE}
+    facts:
+      - {name: repair_cost_usd, expr: REPAIR_COST_USD, data_type: FLOAT}
+      - {name: downtime_hours, expr: DOWNTIME_HOURS, data_type: FLOAT}
+
+relationships:
+  - {name: persona_to_issue, left_table: insight_persona_view, right_table: insight_issue, relationship_columns: [{left_column: ISSUE_ID, right_column: ISSUE_ID}], relationship_type: many_to_one}
+  - {name: risk_to_issue, left_table: insight_risk_assessment, right_table: insight_issue, relationship_columns: [{left_column: ISSUE_ID, right_column: ISSUE_ID}], relationship_type: many_to_one}
+  - {name: action_to_issue, left_table: insight_action, right_table: insight_issue, relationship_columns: [{left_column: ISSUE_ID, right_column: ISSUE_ID}], relationship_type: many_to_one}
+  - {name: impcust_to_issue, left_table: insight_impacted_customers, right_table: insight_issue, relationship_columns: [{left_column: ISSUE_ID, right_column: ISSUE_ID}], relationship_type: many_to_one}
+  - {name: imparea_to_issue, left_table: insight_impacted_areas, right_table: insight_issue, relationship_columns: [{left_column: ISSUE_ID, right_column: ISSUE_ID}], relationship_type: many_to_one}
+  - {name: event_to_machine, left_table: quality_event, right_table: machine, relationship_columns: [{left_column: MACHINE_KEY, right_column: MACHINE_KEY}], relationship_type: many_to_one}
+  - {name: archetype_to_issue, left_table: insight_issue_archetype, right_table: insight_issue, relationship_columns: [{left_column: ISSUE_ID, right_column: ISSUE_ID}], relationship_type: many_to_one}
+  - {name: custback_to_issue, left_table: insight_issue_customer_back, right_table: insight_issue, relationship_columns: [{left_column: ISSUE_ID, right_column: ISSUE_ID}], relationship_type: many_to_one}
+
+verified_queries:
+  - name: top_issues_by_impact
+    question: What are the top 10 quality issues by customer impact right now?
+    sql: SELECT title, quality_dimension, priority_rank, exposed_fleet_count, impacted_customer_count, warranty_exposure_p90 FROM SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE ORDER BY priority_rank ASC LIMIT 10
+  - name: biggest_safety_issue
+    question: What is our biggest safety-priority quality issue and why?
+    sql: SELECT title, model, system_group, failure_mode, exposed_fleet_count, pro_sif_risk, root_cause_summary, rationale_text, data_confidence_band FROM SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE WHERE quality_dimension = 'SAFETY' ORDER BY priority_rank ASC LIMIT 1
+  - name: fuel_system_exposure
+    question: What is the warranty exposure for the LX-950 fuel-system issue?
+    sql: SELECT title, exposed_fleet_count, warranty_exposure_p50, warranty_exposure_p90, warranty_exposure_cvar, root_cause_summary FROM SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE WHERE model = 'LX-950' AND system_group = 'ENGINE_FUEL' AND failure_mode = 'POWER_LOSS'
+  - name: most_affected_segment
+    question: Which end-market segment is most affected?
+    sql: SELECT end_market_cd, SUM(exposure_count) AS units FROM SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_IMPACTED_CUSTOMERS GROUP BY 1 ORDER BY units DESC
+  - name: emerging_vs_recurring
+    question: Which failure modes are emerging versus recurring?
+    sql: SELECT system_group, failure_mode, lifecycle_stage, COUNT(*) AS issues, SUM(exposed_fleet_count) AS exposed FROM SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE GROUP BY 1,2,3 ORDER BY exposed DESC
+  - name: systemic_or_isolated
+    question: Is the LX-950 fuel-system issue systemic or isolated to a lot?
+    sql: SELECT title, root_cause_type, lot_key, root_cause_summary, root_cause_confidence FROM SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE WHERE model = 'LX-950' AND system_group = 'ENGINE_FUEL' AND root_cause_type = 'LOT'
+  - name: mtbf_affected_component
+    question: What is the MTBF on the affected LX-950 fuel system component?
+    sql: SELECT title, mtbf, mttr, failure_mode FROM SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE WHERE model = 'LX-950' AND system_group = 'ENGINE_FUEL' ORDER BY priority_rank
+  - name: exec_persona_view
+    question: Show the executive view for the top priority issue
+    sql: SELECT p.persona, p.diagnose_answer_text, p.primary_metric_name, p.primary_metric_value, p.action_summary FROM SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_PERSONA_VIEW p JOIN SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE i ON i.issue_id = p.issue_id WHERE i.priority_rank = 1 AND p.persona = 'EXECUTIVE'
+  - name: actions_next_72h
+    question: What should we do in the next 72 hours for the fuel-system issue?
+    sql: SELECT a.time_window, a.action_text, a.owner_persona, a.expected_risk_reduction FROM SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ACTION a JOIN SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE i ON i.issue_id = a.issue_id WHERE i.model = 'LX-950' AND i.system_group = 'ENGINE_FUEL' ORDER BY a.time_window
+  - name: archetype_mix_fuel
+    question: For the LX-950 fuel-system power-loss issue, how is the exposed fleet split across customer archetypes and who bears the most pain?
+    sql: SELECT a.archetype, a.units, a.pain_share_pct, a.quality_definition, a.pain_channel FROM SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE_ARCHETYPE a JOIN SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE i ON i.issue_id = a.issue_id WHERE i.model = 'LX-950' AND i.system_group = 'ENGINE_FUEL' AND i.root_cause_type = 'LOT' ORDER BY a.archetype_rank
+  - name: most_vulnerable_archetype
+    question: Which customer archetype feels the LX-950 fuel-system issue most acutely and how should we reach them?
+    sql: SELECT cb.dominant_archetype, cb.dominant_pain_share_pct, cb.dominant_channel FROM SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE_CUSTOMER_BACK cb JOIN SF_SOLUTIONS.CQC_INSIGHTS.INSIGHT_ISSUE i ON i.issue_id = cb.issue_id WHERE i.model = 'LX-950' AND i.system_group = 'ENGINE_FUEL' AND i.root_cause_type = 'LOT'
+
+custom_instructions: >
+  CQC is Acme Industrial's Construction Equipment Division customer-quality command system.
+  ALWAYS respect the customer-pain hierarchy: SAFETY outranks PRODUCTIVITY outranks
+  EXPERIENCE (safety-gated). When ranking or summarizing issues, surface SAFETY-dimension
+  issues first, then order by priority_rank (1 = highest). Persona metrics: Dealer=PDI rate,
+  Product=MTBF/MTTR, Manufacturing=rework minutes / first-pass yield, Supply Chain=SQPI,
+  Executive=downtime & warranty exposure. Ideal-state metrics: SIP (safety), VTC
+  value-to-cost (productivity), CEI customer experience index (experience). When a persona
+  is supplied, answer through that persona's lens and lead with their primary metric from
+  insight_persona_view. Speak in business terms: machine serials, operating hours, USD exposure,
+  supplier lots, build facilities. The flagship anchor scenario is a LX-950 Large Excavator
+  fuel-system defect concentrated in supplier lots L-4471, L-4472 and L-4480 (strongest: L-4480) built at South Plant, GA. Always cite
+  data_confidence when available. Never invent numbers not present in the data.
+  Describe warranty exposure in plain language: warranty_exposure_p50 = "likely exposure",
+  warranty_exposure_p90 = "plan-for exposure" (the budgeting figure), warranty_exposure_cvar =
+  "bad-case exposure". Never use the terms P50, P90, CVaR or percentile in answers.
+  CUSTOMER ARCHETYPE (customer-back): every customer is one of four tiers — ENTERPRISE
+  (strategic, portfolio TCO, reached via account team + exec), NATIONAL (corporate, fleet
+  uptime, reached via account manager + dealer), LOCAL (regional, cost-per-hour, reached via
+  dealer), INDEPENDENT (owner-operator, "machine works when needed", reached at the service
+  counter). The SAME defect is felt differently by tier: use insight_issue_archetype for the
+  per-issue mix and pain_share_pct (felt pain), and insight_issue_customer_back for the
+  dominant archetype/channel and customer-back rank. Safety stays absolute; customer-back only
+  re-ranks productivity/experience. When asked who is most hurt or how to reach them, lead with
+  the dominant archetype, its pain_share_pct, and its pain_channel.

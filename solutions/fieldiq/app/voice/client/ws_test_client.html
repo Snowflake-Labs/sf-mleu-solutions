@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<!--
+  Task 8 - Browser push-to-talk test client for the FieldIQ Voice service.
+
+  Verifies the full multi-turn loop WITHOUT telephony:
+    mic -> 16kHz int16 PCM -> WebSocket -> (VAD/STT/agent/TTS) -> audio back
+
+  Two modes:
+    - Hold-to-talk: streams mic PCM; server VAD detects end-of-turn.
+    - Text turn:    sends {"type":"text_turn"} (mic-less loop test; STT bypassed).
+
+  Point it at the deployed SPCS endpoint or a local run:
+    ws://localhost:8080/voice/<session>   (local)
+    wss://<spcs-endpoint>/voice/<session>  (SPCS, public endpoint)
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FieldIQ Voice - Test Client</title>
+<style>
+  :root{--red:#E03C31;--red2:#F26B54;--dark:#1F2933;--gray:#6B7280;--line:#D9DEE4;--canvas:#F7F8FA;}
+  *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}
+  body{background:var(--canvas);color:var(--dark);padding:28px;max-width:760px;margin:0 auto;}
+  h1{font-size:22px;margin-bottom:2px;}
+  .sub{color:var(--gray);font-size:13px;margin-bottom:18px;}
+  .row{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+  input,button{font-size:14px;border-radius:8px;border:1px solid var(--line);padding:9px 12px;}
+  input{flex:1;min-width:220px;}
+  button{cursor:pointer;background:#fff;transition:all .15s;}
+  button:hover{border-color:var(--red);}
+  .primary{background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;border:none;font-weight:600;}
+  .primary:disabled{opacity:.5;cursor:not-allowed;}
+  #talk{width:100%;padding:18px;font-size:16px;font-weight:700;user-select:none;}
+  #talk.rec{background:var(--red);color:#fff;border:none;}
+  .pill{font-size:11px;padding:3px 10px;border-radius:999px;background:#eee;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;}
+  .pill.listening{background:#e0f2fe;color:#0369a1;}
+  .pill.thinking{background:#fef3c7;color:#b45309;}
+  .pill.speaking{background:#dcfce7;color:#15803d;}
+  #log{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:16px;height:340px;overflow-y:auto;font-size:14px;}
+  .msg{margin-bottom:12px;line-height:1.4;}
+  .msg .who{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray);margin-bottom:2px;}
+  .msg.rep .who{color:var(--red);}
+  .msg.sm .bubble{background:#f1f5f9;border-radius:8px;padding:8px 12px;display:inline-block;}
+  .sys{color:var(--gray);font-size:12px;font-style:italic;}
+</style>
+</head>
+<body>
+  <h1>FieldIQ Voice — Test Client</h1>
+  <div class="sub">Hold to talk (mic) or type a turn. Verifies the full VAD → STT → agent → TTS loop.</div>
+
+  <div class="row">
+    <input id="url" value="ws://localhost:8080/voice/browser-test"/>
+    <button id="connect" class="primary">Connect</button>
+    <span id="state" class="pill">disconnected</span>
+  </div>
+  <button id="talk" disabled>Hold to Talk</button>
+
+  <div class="row" style="margin-top:12px;">
+    <input id="text" placeholder="…or type a turn and press Send (mic-less test)"/>
+    <button id="send" disabled>Send</button>
+  </div>
+
+  <div id="log"></div>
+
+<script>
+const SR_IN = 16000;              // mic capture / STT sample rate
+let ws, audioCtx, micStream, procNode, srcNode;
+let playCtx, playHead = 0, playSR = 22050;
+
+const $ = id => document.getElementById(id);
+const logEl = $('log');
+
+// When served over http(s) (e.g. from the SPCS ingress), default to a
+// same-origin WebSocket so the Snowflake OAuth session cookie authenticates
+// the upgrade automatically. Falls back to localhost when opened as a file://.
+if (location.protocol === 'http:' || location.protocol === 'https:') {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const sid = 'browser-' + Math.random().toString(36).slice(2, 8);
+  $('url').value = `${proto}://${location.host}/voice/${sid}`;
+}
+
+function log(html, cls='sys'){
+  const d = document.createElement('div');
+  d.className = 'msg ' + cls;
+  d.innerHTML = html;
+  logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+}
+function setState(s){
+  const el = $('state'); el.textContent = s; el.className = 'pill ' + s;
+}
+
+// ---- WebSocket ----
+$('connect').onclick = () => {
+  if (ws) { ws.close(); return; }
+  ws = new WebSocket($('url').value);
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => {
+    setState('listening'); $('connect').textContent = 'Disconnect';
+    $('talk').disabled = false; $('send').disabled = false;
+    log('Connected.');
+  };
+  ws.onclose = () => {
+    setState('disconnected'); $('connect').textContent = 'Connect';
+    $('talk').disabled = true; $('send').disabled = true; ws = null;
+    log('Disconnected.');
+  };
+  ws.onmessage = onMessage;
+};
+
+function onMessage(ev){
+  if (typeof ev.data !== 'string'){ playPCM(ev.data); return; }
+  const m = JSON.parse(ev.data);
+  if (m.type === 'state') setState(m.state);
+  else if (m.type === 'transcript') log(`<div class="who">Rep (heard)</div>${m.text||'(silence)'}`, 'rep');
+  else if (m.type === 'answer')     log(`<div class="who">FieldIQ</div><span class="bubble">${m.text}</span>`, 'sm');
+  else if (m.type === 'audio_start'){ playSR = m.sample_rate || 22050; ensurePlayCtx(); }
+  else if (m.type === 'audio_end')  {/* utterance complete */}
+}
+
+// ---- audio playback (raw int16 PCM streamed back) ----
+function ensurePlayCtx(){
+  if (!playCtx){ playCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+  if (playHead < playCtx.currentTime) playHead = playCtx.currentTime;
+}
+function playPCM(arrayBuf){
+  ensurePlayCtx();
+  const pcm = new Int16Array(arrayBuf);
+  const f32 = new Float32Array(pcm.length);
+  for (let i=0;i<pcm.length;i++) f32[i] = pcm[i] / 32768;
+  const buf = playCtx.createBuffer(1, f32.length, playSR);
+  buf.copyToChannel(f32, 0);
+  const src = playCtx.createBufferSource();
+  src.buffer = buf; src.connect(playCtx.destination);
+  src.start(playHead); playHead += buf.duration;
+}
+
+// ---- mic capture (hold to talk) ----
+async function startMic(){
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate: SR_IN});
+  micStream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+  srcNode = audioCtx.createMediaStreamSource(micStream);
+  procNode = audioCtx.createScriptProcessor(4096, 1, 1);
+  srcNode.connect(procNode); procNode.connect(audioCtx.destination);
+  procNode.onaudioprocess = (e) => {
+    if (!ws || ws.readyState !== 1) return;
+    const inRate = audioCtx.sampleRate;
+    let data = e.inputBuffer.getChannelData(0);
+    if (inRate !== SR_IN) data = downsample(data, inRate, SR_IN);
+    ws.send(floatToPCM16(data));
+  };
+}
+function stopMic(){
+  if (procNode){ procNode.disconnect(); procNode.onaudioprocess=null; procNode=null; }
+  if (srcNode) srcNode.disconnect();
+  if (micStream) micStream.getTracks().forEach(t=>t.stop());
+  if (audioCtx) audioCtx.close();
+  audioCtx=micStream=srcNode=null;
+}
+function floatToPCM16(f32){
+  const out = new Int16Array(f32.length);
+  for (let i=0;i<f32.length;i++){ const s=Math.max(-1,Math.min(1,f32[i])); out[i]=s<0?s*32768:s*32767; }
+  return out.buffer;
+}
+function downsample(buf, inRate, outRate){
+  const ratio = inRate/outRate, len = Math.floor(buf.length/ratio);
+  const out = new Float32Array(len);
+  for (let i=0;i<len;i++) out[i] = buf[Math.floor(i*ratio)];
+  return out;
+}
+
+const talk = $('talk');
+const press = async (e)=>{ e.preventDefault(); talk.classList.add('rec'); talk.textContent='Listening… release to send';
+  try{ await startMic(); }catch(err){ log('Mic error: '+err); } };
+const release = ()=>{
+  if (!talk.classList.contains('rec')) return;   // ignore stray mouseup
+  talk.classList.remove('rec'); talk.textContent='Hold to Talk'; stopMic();
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:'end_turn'}));
+};
+talk.addEventListener('mousedown', press);
+talk.addEventListener('touchstart', press);
+window.addEventListener('mouseup', release);
+window.addEventListener('touchend', release);
+
+// ---- text turn (mic-less) ----
+$('send').onclick = ()=>{
+  const t = $('text').value.trim(); if(!t||!ws) return;
+  ws.send(JSON.stringify({type:'text_turn', text:t}));
+  $('text').value='';
+};
+$('text').addEventListener('keydown', e=>{ if(e.key==='Enter') $('send').click(); });
+</script>
+</body>
+</html>

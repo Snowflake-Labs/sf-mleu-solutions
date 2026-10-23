@@ -6,7 +6,6 @@ Disclaimer: This application is not part of the Snowflake Service and is governe
 
 End-to-end solution accelerators for the MLEU industry vertical, built on Snowflake and Cortex Code, showcasing Cortex AI, Snowflake ML, and the modern data platform.
 
-
 ## Requirements
 
 - Snowflake Trial account
@@ -23,6 +22,7 @@ End-to-end solution accelerators for the MLEU industry vertical, built on Snowfl
 | 1 | **Predictive Maintenance** | Manufacturing | `solutions/predictive-maintenance/` | Snowflake Intelligence, Cortex Analyst, Semantic View, Streamlit, SPCS | ✅ Done |
 | 2 | **Supply Chain Intelligence Platform** | Manufacturing | `solutions/supply-chain-intelligence/` | Snowflake Intelligence, Cortex Analyst, Cortex Search, Semantic Model, Streamlit | ✅ Done |
 | 3 | **GNN Supply Chain Risk Intelligence** | Manufacturing | `solutions/gnn-supply-chain-risk/` | Graph Neural Networks, PyTorch Geometric, Cortex Agent, Cortex Analyst, SPCS GPU, Streamlit | ✅ Done |
+| 6 | **FieldIQ** | Manufacturing | `solutions/fieldiq/` | Cortex Agent, Cortex Analyst, Semantic View, Cortex Search, Snowpark Python, Geospatial, SPCS (optional) | ✅ Done |
 
 ---
 

@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* FieldIQ by Apex Industrial — light theme */
+:root {
+  --apex-red:    #E03C31;
+  --apex-orange: #F4511E;
+  --apex-dark:   #1F2937;
+  --apex-gray:   #6B7280;
+}
+
+html, body, #root { @apply h-full; }
+
+body {
+  @apply bg-canvas-100 text-apex-dark antialiased;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: "cv02","cv03","cv04","cv11";
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar       { @apply w-2 h-2; }
+::-webkit-scrollbar-track { @apply bg-canvas-100; }
+::-webkit-scrollbar-thumb { @apply bg-canvas-300 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-canvas-400; }
+
+/* Apex angled red corner banner used on Layout */
+.apex-corner {
+  background: var(--apex-red);
+  -webkit-clip-path: polygon(0 0, 100% 0, 75% 100%, 0 100%);
+          clip-path: polygon(0 0, 100% 0, 75% 100%, 0 100%);
+}
+
+.apex-card {
+  @apply bg-white rounded-lg border border-canvas-300 shadow-sm hover:shadow-md transition-shadow;
+}
+
+.apex-btn-primary {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md
+         bg-apex-red text-white font-medium hover:bg-apex-600 active:bg-apex-700
+         transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+}
+.apex-btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md
+         bg-white text-apex-dark border border-canvas-300 font-medium
+         hover:border-apex-red hover:text-apex-red transition-colors;
+}
+
+.feature-tile {
+  @apply bg-apex-red text-white font-semibold rounded-md py-3 px-4
+         hover:bg-apex-600 active:bg-apex-700 transition-colors text-left
+         shadow-sm hover:shadow flex items-center gap-3;
+}
+.feature-tile-prompt {
+  @apply bg-white border border-dashed border-canvas-300 rounded-md py-3 px-4
+         text-sm text-apex-gray italic;
+}
+
+.kbd {
+  @apply px-1.5 py-0.5 rounded border border-canvas-300 bg-canvas-100 text-xs font-mono text-apex-dark;
+}
+
+/* Markdown chat content */
+.markdown-content { @apply text-apex-dark text-sm leading-relaxed; }
+.markdown-content h1 { @apply text-xl font-bold mt-4 mb-2; }
+.markdown-content h2 { @apply text-lg font-semibold mt-3 mb-1.5 text-apex-red; }
+.markdown-content h3 { @apply text-base font-semibold mt-2 mb-1; }
+.markdown-content p  { @apply my-2; }
+.markdown-content ul,
+.markdown-content ol { @apply list-disc pl-6 my-2 space-y-1; }
+.markdown-content ol { @apply list-decimal; }
+.markdown-content li { @apply marker:text-apex-red; }
+.markdown-content code { @apply px-1 py-0.5 bg-canvas-200 rounded text-xs font-mono; }
+.markdown-content pre  { @apply p-3 bg-canvas-200 rounded my-2 overflow-x-auto text-xs; }
+.markdown-content table { @apply border-collapse my-2 text-sm; }
+.markdown-content th { @apply bg-apex-100 text-apex-dark px-3 py-1.5 border border-canvas-300 font-semibold text-left; }
+.markdown-content td { @apply px-3 py-1.5 border border-canvas-300; }
+.markdown-content strong { @apply font-semibold text-apex-dark; }
+.markdown-content blockquote { @apply border-l-4 border-apex-red pl-3 italic text-apex-gray my-2; }
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.animate-slide-in-right { animation: slide-in-right 0.25s ease-out; }

@@ -1,0 +1,6 @@
+# Baked model weights are large and downloaded at build prep time, not committed.
+# See deploy.sh / README for how to fetch:
+#   whisper: huggingface Systran/faster-whisper-large-v3
+#   piper:   rhasspy/piper-voices en_US-lessac-medium
+*
+!.gitignore

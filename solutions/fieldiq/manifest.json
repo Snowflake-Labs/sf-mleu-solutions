@@ -1,0 +1,54 @@
+{
+  "name": "fieldiq",
+  "display_name": "FieldIQ",
+  "version": "1.0.0",
+  "type": "script",
+  "industry": "Manufacturing",
+  "description": "Agentic AI sales co-pilot for an industrial-equipment manufacturer's field sales team: natural-language analytics over CRM and ERP data, search over engineering documents, and AI-generated call plans, meeting agendas, emails and visit routes from a Cortex Agent.",
+  "author": "Rishabh Raman",
+  "edition": "Enterprise",
+  "trial_compatible": true,
+  "database": "SF_SOLUTIONS",
+  "schemas": [
+    "FIQ_ATOMIC",
+    "FIQ_ANALYTICS",
+    "FIQ_CORTEX",
+    "FIQ_ACTIONS",
+    "FIQ_STAGES"
+  ],
+  "role": "ACCOUNTADMIN",
+  "requires_warehouse": true,
+  "install_scripts": [
+    "scripts/setup.sql",
+    "scripts/data.sql",
+    "scripts/pipeline.sql"
+  ],
+  "teardown_scripts": [
+    "scripts/teardown.sql"
+  ],
+  "optional_addons": [
+    {
+      "name": "Web app on SPCS (React + FastAPI)",
+      "path": "app",
+      "install_scripts": ["app/setup_app.sql", "app/create_service.sql"],
+      "trial_compatible": false
+    },
+    {
+      "name": "Voice service on SPCS GPU (not re-tested in this release)",
+      "path": "app/voice",
+      "install_scripts": ["app/setup_voice.sql", "app/create_voice_service.sql"],
+      "trial_compatible": false
+    }
+  ],
+  "features": [
+    "Snowpark Python Stored Procedures",
+    "Cortex AI Functions (COMPLETE)",
+    "Cortex Analyst",
+    "Semantic View",
+    "Cortex Search",
+    "Cortex Agent",
+    "Snowflake CoWork",
+    "Geospatial",
+    "SPCS (optional add-ons)"
+  ]
+}

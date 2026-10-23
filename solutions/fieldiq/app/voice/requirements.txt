@@ -1,0 +1,26 @@
+# FieldIQ Voice service dependencies
+# Pinned versions to be finalized during implementation.
+
+# --- Transport / API ---
+fastapi
+uvicorn[standard]
+websockets
+
+# --- Voice pipeline (open-source) ---
+# VAD
+silero-vad            # Silero VAD (MIT)
+# STT
+faster-whisper        # Whisper large-v3 / distil (MIT), CUDA
+# TTS
+piper-tts             # Piper (MIT) — fast/default
+# MOSS-TTSD installed separately (verify package name + license before pinning)
+
+# --- Audio utils ---
+numpy
+soundfile
+
+# --- Snowflake / agent bridge (reuse app backend client) ---
+snowflake-connector-python
+httpx
+
+# NOTE: torch + CUDA come from the base GPU image in deploy/Dockerfile, not pinned here.

@@ -1214,7 +1214,7 @@ def header_footer(c: canvas.Canvas, doc):
     c.setStrokeColor(APEX_GRAY); c.setLineWidth(0.4)
     c.line(0.5*inch, 0.55*inch, w-0.5*inch, 0.55*inch)
     c.setFillColor(APEX_GRAY); c.setFont("Helvetica", 8)
-    c.drawString(0.5*inch, 0.4*inch, f"Apex Industrial — Confidential / Sales Use")
+    c.drawString(0.5*inch, 0.4*inch, f"Apex Industrial (fictional) — Sample Document")
     c.drawRightString(w-0.5*inch, 0.4*inch, f"Page {c.getPageNumber()}")
 
 def make_pdf(path: Path, title: str, story_blocks):
@@ -1756,7 +1756,7 @@ def write_pricing_sheet(products: pd.DataFrame, family: str) -> tuple[Path, Path
     md_path  = MD_DIR / f"pricing_{safe}.md"
     pdf_path = PDF_DIR / f"pricing_{safe}.pdf"
     df = products[products["PRODUCT_FAMILY"]==family].sort_values(["PRODUCT_LINE","PRODUCT_ID"])
-    md = [f"# {title}", "*Confidential — Apex Industrial Sales*", "",
+    md = [f"# {title}", "*Sample document — Apex Industrial (fictional)*", "",
           "| Product ID | Description | List Price (USD) | Lead Time (wks) | Status |",
           "|---|---|---|---|---|"]
     for _, r in df.iterrows():
@@ -1765,7 +1765,7 @@ def write_pricing_sheet(products: pd.DataFrame, family: str) -> tuple[Path, Path
 
     story = []
     story.append(Paragraph(title, styles["ApexTitle"]))
-    story.append(Paragraph("Confidential — Apex Industrial Sales", styles["ApexSub"]))
+    story.append(Paragraph("Sample document — Apex Industrial (fictional)", styles["ApexSub"]))
     rows = [["Product ID","Description","List Price (USD)","Lead (wks)","Status"]]
     for _, r in df.iterrows():
         rows.append([r["PRODUCT_ID"],

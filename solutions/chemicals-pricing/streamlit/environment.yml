@@ -1,0 +1,10 @@
+name: chemicals_pricing
+channels:
+  - snowflake
+dependencies:
+  - streamlit
+  - pandas
+  - plotly
+  - snowflake-snowpark-python
+  - scipy
+  - numpy

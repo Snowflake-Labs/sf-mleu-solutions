@@ -1,0 +1,39 @@
+{
+  "name": "chemicals-pricing",
+  "display_name": "Chemicals Pricing & Margin Intelligence",
+  "version": "1.0.0",
+  "type": "script",
+  "industry": "Manufacturing",
+  "description": "Pricing and margin intelligence for a chemicals producer: margin and cost-to-serve analysis, price elasticity estimated from order history (SUR system across product families), constrained price optimisation, XGBoost demand forecasts, Cortex Search over market reports and a Cortex Agent, with a Streamlit app and notebooks that walk through the techniques.",
+  "author": "Rishabh Raman",
+  "edition": "Enterprise",
+  "trial_compatible": true,
+  "database": "SF_SOLUTIONS",
+  "schemas": [
+    "CHP_RAW",
+    "CHP_ATOMIC",
+    "CHP_OPS"
+  ],
+  "role": "ACCOUNTADMIN",
+  "requires_warehouse": true,
+  "install_scripts": [
+    "scripts/setup.sql",
+    "scripts/data.sql",
+    "scripts/pipeline.sql",
+    "scripts/streamlit.sql"
+  ],
+  "teardown_scripts": [
+    "scripts/teardown.sql"
+  ],
+  "features": [
+    "Snowpark Python Stored Procedures",
+    "Cortex Analyst",
+    "Semantic View",
+    "Cortex Search",
+    "Cortex Agent",
+    "Cortex AI Functions (COMPLETE)",
+    "Snowflake CoWork",
+    "Streamlit in Snowflake",
+    "Notebooks"
+  ]
+}
